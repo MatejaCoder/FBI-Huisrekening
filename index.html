@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex, nofollow">
+<title>FBI Huisrekening</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Inter:wght@400;500;600&display=swap">
+<style>
+:root{padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+
+/* Layout: kop met maandkiezer, tabbladen, daaronder kaarten per huisgenoot of de invoer van de maand. */
+:root{
+  --bg:#F2F4F1; --surface:#FFFFFF; --sunk:#E8ECE7; --ink:#1B2430; --muted:#5E6A74; --line:#D7DDD6;
+  --accent:#A8670A; --accent-ink:#FFFFFF; --accent-soft:#F5E6C6; --pos:#2D7A4C; --neg:#B23F2C; --neg-soft:#F6DDD7;
+  --f-display:"Bricolage Grotesque","Inter",system-ui,sans-serif;
+  --f-body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11161B; --surface:#1A2129; --sunk:#151B21; --ink:#E6EBEE; --muted:#97A3AD; --line:#2B343E;
+  --accent:#E2A23A; --accent-ink:#1B1406; --accent-soft:#3A2D15; --pos:#62BE88; --neg:#E58371; --neg-soft:#3B211C; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161B; --surface:#1A2129; --sunk:#151B21; --ink:#E6EBEE; --muted:#97A3AD; --line:#2B343E;
+  --accent:#E2A23A; --accent-ink:#1B1406; --accent-soft:#3A2D15; --pos:#62BE88; --neg:#E58371; --neg-soft:#3B211C; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 60px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:26px;font-weight:750}
+h2{font-size:18px;font-weight:650}
+h3{font-size:15px;font-weight:650}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+.label{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;justify-content:space-between}
+.brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.stamp{font-family:var(--f-display);font-weight:750;font-size:13px;letter-spacing:.12em;border:2px solid var(--accent);color:var(--accent);padding:1px 7px;border-radius:4px}
+.monthbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+select,input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 8px;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input.bad{border-color:var(--neg);background:var(--neg-soft)}
+input:disabled,select:disabled{opacity:.7}
+input.amt{width:92px;text-align:right;font-variant-numeric:tabular-nums}
+button{font:inherit;cursor:pointer;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:6px 11px;font-weight:500}
+button:hover{border-color:var(--muted)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+button.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:4px 7px}
+button.ghost:hover{color:var(--ink);border-color:var(--line)}
+button.danger{color:var(--neg)}
+button:disabled{opacity:.5;cursor:default}
+nav.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav.tabs a{padding:9px 14px;color:var(--muted);text-decoration:none;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+nav.tabs a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.pill.concept{background:var(--accent-soft);color:var(--accent)}
+.pill.def{background:var(--sunk);color:var(--pos)}
+.pill.neg{background:var(--neg-soft);color:var(--neg)}
+.save{font-size:12px;color:var(--muted)}
+.save.err{color:var(--neg)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.summary{display:flex;flex-wrap:wrap;gap:12px 32px;align-items:flex-end}
+.summary .big{font-family:var(--f-display);font-size:30px;font-weight:750;line-height:1}
+.iban{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.iban code{font-family:var(--f-body);font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.card .who{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card .amount{font-family:var(--f-display);font-size:26px;font-weight:750;line-height:1.05}
+.card .amount.neg{color:var(--pos)}
+.bar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--sunk)}
+.bar span{display:block;height:100%}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.c-huur{background:var(--ink);opacity:.75}
+.c-vast{background:var(--accent)}
+.c-var{background:var(--pos)}
+.c-pils{background:var(--muted);opacity:.6}
+details.spec summary{cursor:pointer;color:var(--muted);font-size:12.5px;list-style:none}
+details.spec summary::-webkit-details-marker{display:none}
+details.spec summary::before{content:"▸ ";}
+details.spec[open] summary::before{content:"▾ ";}
+.lines{display:grid;grid-template-columns:1fr auto;gap:3px 10px;font-size:13px;margin-top:6px}
+.lines .tot{border-top:1px solid var(--line);padding-top:4px;font-weight:600}
+.copyrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 9px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--surface)}
+thead th{font-size:12px;color:var(--muted);font-weight:600}
+tr.strong td{font-weight:650;background:var(--sunk)}
+tr.strong td:first-child{background:var(--sunk)}
+td.zero{color:var(--line)}
+textarea{width:100%;min-height:220px;font:13px/1.5 var(--f-body);color:var(--ink);background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:10px;resize:vertical}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:860px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.live{display:flex;flex-wrap:wrap;gap:6px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:8px;border-bottom:1px solid var(--line)}
+.live .chipv{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-size:12.5px;display:flex;gap:6px}
+.live .chipv b{font-weight:600}
+.post{border:1px solid var(--line);border-radius:9px;padding:12px;display:flex;flex-direction:column;gap:9px;background:var(--surface)}
+.post.vast{border-left:3px solid var(--accent)}
+.post-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.post-row .name{flex:1 1 200px}
+.post-row label{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.chip{padding:3px 10px;border-radius:999px;font-size:12.5px;border:1px solid var(--line);background:var(--sunk);color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink);font-weight:600}
+.chips .sep{width:1px;height:18px;background:var(--line);margin:0 3px}
+.losgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px}
+.losgrid label{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px}
+.preview{font-size:12.5px;color:var(--muted)}
+.preview b{color:var(--ink);font-weight:600}
+.warn{background:var(--accent-soft);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px}
+.empty{padding:40px 16px;text-align:center;color:var(--muted)}
+.ptable td input.amt{width:84px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+@media (prefers-reduced-motion:no-preference){.card,.post{transition:border-color .15s}}
+
+body{margin:0}
+.lock{max-width:380px;margin:12vh auto 0;display:flex;flex-direction:column;gap:14px}
+.lock form{display:flex;flex-direction:column;gap:10px}
+.lock input[type=password]{padding:10px 12px;font-size:16px}
+.lock .fout{color:var(--neg);font-size:13px;min-height:1.2em}
+.lock label.rem{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+</style>
+</head><body>
+<div class="wrap" id="app">
+  <header class="top">
+    <div class="brand"><span class="stamp">FBI</span><h1>Huisrekening</h1></div>
+    <div class="monthbar" id="monthbar"></div>
+  </header>
+  <section class="panel lock" id="lock">
+    <h2>Afgeschermd</h2>
+    <p class="muted small">Vul het huiswachtwoord in om de rekening te zien.</p>
+    <form id="lockform">
+      <input type="password" id="ww" autocomplete="current-password" placeholder="Wachtwoord" aria-label="Wachtwoord" required>
+      <label class="rem"><input type="checkbox" id="onthoud"> Onthoud op dit apparaat</label>
+      <button class="primary" type="submit" id="openknop">Openen</button>
+      <div class="fout" id="fout" role="alert"></div>
+    </form>
+  </section>
+  <main id="main" hidden></main>
+  <p class="small muted" id="voet" hidden>Alleen lezen. Klopt er iets niet? Laat het Mateja weten.</p>
+</div>
+<script>
+const SLOT = {"salt": "cmd6B3bpa8QeTFK3Sqq5yw==", "iv": "grbByZBxlPyiv4fv", "iter": 600000, "data": "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"};
+/*CALC-START*/
+const MAANDEN=["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
+function maandNaam(id){const [j,m]=id.split("-").map(Number);return MAANDEN[m-1]+" "+j;}
+function volgendeId(id){let [j,m]=id.split("-").map(Number);m++;if(m>12){m=1;j++;}return j+"-"+String(m).padStart(2,"0");}
+function vorigeId(id){let [j,m]=id.split("-").map(Number);m--;if(m<1){m=12;j--;}return j+"-"+String(m).padStart(2,"0");}
+const nz=v=>(typeof v==="number"&&isFinite(v))?v:0;
+function postBedragen(p){
+  const out={};
+  if(p.soort==="los"){for(const [n,v] of Object.entries(p.bedragen||{})) if(nz(v)) out[n]=nz(v);return out;}
+  const pers=p.personen||[];
+  if(!pers.length) return out;
+  if(p.soort==="pp"){for(const n of pers) out[n]=nz(p.bedrag);return out;}
+  const d=nz(p.deler)||pers.length;
+  for(const n of pers) out[n]=nz(p.totaal)/d;
+  return out;
+}
+function postTotaal(p){const b=postBedragen(p);return Object.values(b).reduce((a,c)=>a+c,0);}
+function pilsInfo(m){
+  const pc=m.pils||{prijs:0.65,perKrat:24,deler:9,personen:[]};
+  const strepen=m.strepen||{};
+  const somStrepen=Object.values(strepen).reduce((a,c)=>a+nz(c),0);
+  const kratten=nz(m.kratten);
+  const niet=kratten*nz(pc.perKrat)-somStrepen;
+  const toeslag=kratten?(niet/(nz(pc.deler)||1))*nz(pc.prijs):0;
+  return {pc,strepen,somStrepen,kratten,niet,toeslag};
+}
+// Bereken alle maanden in volgorde; openstaand = "te betalen" van de vorige maand, tenzij vastgelegd.
+function berekenAlles(maanden){
+  const ids=Object.keys(maanden).sort();
+  const res={};
+  for(const id of ids){
+    const m=maanden[id];
+    const prev=res[vorigeId(id)];
+    const namen=m.namen||[];
+    const pi=pilsInfo(m);
+    const per={};
+    for(const n of namen){
+      const open=(m.openstaand&&n in m.openstaand)?nz(m.openstaand[n]):(prev&&prev.per[n]?prev.per[n].totaal:0);
+      const betaald=nz((m.betaald||{})[n]);
+      const huur=nz((m.huur||{})[n]);
+      per[n]={open,betaald,huur,variabel:open-betaald+huur,posten:[],boete:nz((m.boetes||{})[n]),pils:0,totaal:0,vast:0,var:0};
+    }
+    (m.posten||[]).forEach(p=>{
+      const b=postBedragen(p);
+      for(const [n,v] of Object.entries(b)){ if(!per[n]) continue; per[n].posten.push({naam:p.naam||"(zonder naam)",bedrag:v,vast:!!p.vast}); if(p.vast) per[n].vast+=v; else per[n].var+=v; }
+    });
+    for(const n of namen){
+      const meeToeslag=(pi.pc.personen||[]).includes(n);
+      const str=nz(pi.strepen[n]);
+      per[n].pils=(str||meeToeslag)?nz(pi.pc.prijs)*str+(meeToeslag?pi.toeslag:0):0;
+      const r=per[n];
+      r.totaal=r.variabel+r.posten.reduce((a,c)=>a+c.bedrag,0)+r.boete+r.pils;
+    }
+    const totaal=namen.reduce((a,n)=>a+per[n].totaal,0);
+    res[id]={id,per,namen,pils:pi,totaal,heeftVorige:!!prev};
+  }
+  return res;
+}
+function eur(x){const v=Math.round(nz(x)*100)/100;const s=Math.abs(v).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});return (v<0?"-":"")+"€ "+s;}
+function groepsappTekst(m,r,cfg){
+  const volg=MAANDEN[(Number(m.id.split("-")[1]))%12];
+  const L=[`Huisrekening ${maandNaam(m.id)} staat klaar! 🍺`,
+    `Graag vóór 1 ${volg} overmaken naar ${cfg.betalen.iban} t.n.v. ${cfg.betalen.tnv}, o.v.v. 'Huisrekening ${MAANDEN[Number(m.id.split("-")[1])-1]} + je naam'.`,""];
+  for(const n of r.namen){const t=r.per[n].totaal; if(Math.abs(t)<0.005) continue; L.push(`${n}: ${t<0?"tegoed "+eur(-t):eur(t)}`);}
+  L.push("","Vragen of klopt er iets niet? Laat het me weten.");
+  return L.join("\n");
+}
+function specRegels(r){
+  const L=[];
+  if(Math.abs(r.variabel)>=0.005) L.push(["Huur + openstaand − betaald",r.variabel]);
+  for(const p of r.posten) L.push([p.naam,p.bedrag]);
+  if(r.boete) L.push(["Boetes",r.boete]);
+  if(Math.abs(r.pils)>=0.005) L.push(["Pils",r.pils]);
+  return L;
+}
+function specTekst(n,r,m,cfg){
+  const L=[`Hoi ${n}, je huisrekening ${maandNaam(m.id)}: ${eur(r.totaal)}`];
+  for(const [k,v] of specRegels(r)) L.push(`- ${k}: ${eur(v)}`);
+  L.push(`Overmaken naar ${cfg.betalen.iban} t.n.v. ${cfg.betalen.tnv}.`);
+  return L.join("\n");
+}
+
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const S={config:null,maanden:{},huidig:null};
+let R={};
+function maand(){return S.maanden[S.huidig];}
+function cfg(){return S.config;}
+function viewOverzicht(){
+  const m=maand(),r=R[m.id],c=cfg();
+  const namen=r.namen;
+  const maxT=Math.max(1,...namen.map(n=>Math.max(0,r.per[n].totaal)));
+  const cards=namen.map(n=>{
+    const p=r.per[n];
+    const seg=[["c-huur",Math.max(0,p.variabel)],["c-vast",p.vast],["c-var",p.var+p.boete],["c-pils",p.pils]];
+    const regels=specRegels(p);
+    return `<article class="card">
+      <div class="who"><h3>${esc(n)}</h3>${p.totaal<-0.004?`<span class="pill def">tegoed</span>`:(Math.abs(p.totaal)<0.005?`<span class="pill">niets</span>`:"")}</div>
+      <div class="amount num ${p.totaal<-0.004?"neg":""}">${eur(p.totaal<-0.004?-p.totaal:p.totaal)}</div>
+      <div class="bar" style="width:${Math.max(4,Math.max(0,p.totaal)/maxT*100)}%">${seg.map(([k,v])=>v>0.004?`<span class="${k}" style="width:${v/Math.max(.01,seg.reduce((a,s)=>a+Math.max(0,s[1]),0))*100}%"></span>`:"").join("")}</div>
+      <details class="spec"><summary>Specificatie (${regels.length} regels)</summary>
+        <div class="lines">
+          ${r.heeftVorige||(m.openstaand)?`<span class="muted">Openstaand</span><span class="num muted">${eur(p.open)}</span><span class="muted">Betaald</span><span class="num muted">−${eur(p.betaald)}</span><span class="muted">Huur</span><span class="num muted">${eur(p.huur)}</span>`:""}
+          ${regels.map(([k,v])=>`<span>${esc(k)}</span><span class="num">${eur(v)}</span>`).join("")}
+          <span class="tot">Te betalen</span><span class="tot num">${eur(p.totaal)}</span>
+        </div>
+        <div class="copyrow"><button data-act="kopieer-spec" data-naam="${esc(n)}">Kopieer appje voor ${esc(n)}</button></div>
+      </details>
+    </article>`;}).join("");
+  const posten=(m.posten||[]);
+  const rows=[["Openstaand",n=>r.per[n].open],["Betaald vorige maand",n=>-r.per[n].betaald],["Huur",n=>r.per[n].huur]];
+  const body=[
+    ...rows.map(([k,f])=>[k,namen.map(f),false]),
+    ["Huur + openstaand − betaald",namen.map(n=>r.per[n].variabel),true],
+    ...posten.map(p=>{const b=postBedragen(p);return [p.naam||"(zonder naam)",namen.map(n=>b[n]||0),false];}),
+    ["Boetes",namen.map(n=>r.per[n].boete),false],
+    ["Pils",namen.map(n=>r.per[n].pils),false],
+    ["Te betalen",namen.map(n=>r.per[n].totaal),true]];
+  const tabel=`<div class="tablewrap"><table><thead><tr><th>Post</th>${namen.map(n=>`<th>${esc(n)}</th>`).join("")}<th>Totaal</th></tr></thead><tbody>
+    ${body.map(([k,vals,strong])=>`<tr class="${strong?"strong":""}"><td>${esc(k)}</td>${vals.map(v=>`<td class="${Math.abs(v)<0.005?"zero":""}">${Math.abs(v)<0.005?"–":eur(v).replace("€ ","")}</td>`).join("")}<td>${eur(vals.reduce((a,c)=>a+c,0)).replace("€ ","")}</td></tr>`).join("")}
+  </tbody></table></div>`;
+  return `<div class="wrap" style="gap:16px">
+    <section class="panel">
+      <div class="summary">
+        <div><div class="label">Te innen ${esc(maandNaam(m.id))}</div><div class="big num">${eur(r.totaal)}</div></div>
+        <div><div class="label">Huisgenoten</div><div class="num" style="font-size:18px;font-weight:600">${namen.filter(n=>Math.abs(r.per[n].totaal)>=0.005).length} betalen</div></div>
+        <div class="iban"><div><div class="label">Overmaken naar</div><code>${esc(c.betalen.iban)}</code> <span class="muted">t.n.v. ${esc(c.betalen.tnv)}</span></div><button class="ghost" data-act="kopieer" data-tekst="${esc(c.betalen.iban.replace(/\s/g,""))}">Kopieer IBAN</button></div>
+      </div>
+      <div class="legend"><span><i class="c-huur"></i>Huur en openstaand</span><span><i class="c-vast"></i>Vaste lasten</span><span><i class="c-var"></i>Variabel en boetes</span><span><i class="c-pils"></i>Pils</span></div>
+    </section>
+    <section class="cards">${cards}</section>
+    <section class="grid2">
+      <div class="panel"><div class="panel-head"><h2>Groepsapp</h2><button class="primary" data-act="kopieer-app">Kopieer tekst</button></div>
+        <textarea id="apptekst" readonly aria-label="Tekst voor de groepsapp">${esc(groepsappTekst(m,r,c))}</textarea></div>
+      <div class="panel"><div class="panel-head"><h2>Pils deze maand</h2></div>
+        <div class="lines" style="max-width:340px">
+          <span>Strepen huisgenoten</span><span class="num">${r.pils.somStrepen}</span>
+          <span>Strepen FBI (huis)</span><span class="num">${nz(m.strepenFbi)}</span>
+          <span>Kratten gehaald</span><span class="num">${r.pils.kratten} (${r.pils.kratten*nz(r.pils.pc.perKrat)} flesjes)</span>
+          <span>Niet gestreept</span><span class="num">${r.pils.niet}</span>
+          <span class="tot">Toeslag per bewoner</span><span class="tot num">${eur(r.pils.toeslag)}</span>
+        </div>
+        <p class="small muted">Toeslag = (kratten × 24 − strepen) ÷ ${nz(r.pils.pc.deler)} × ${eur(r.pils.pc.prijs)}, voor ${esc((r.pils.pc.personen||[]).join(", "))}.</p>
+      </div>
+    </section>
+    <section class="panel"><div class="panel-head"><h2>Hele maand in één tabel</h2><span class="small muted">Zelfde opbouw als het maandblad in Excel</span></div>${tabel}</section>
+  </div>`;
+}
+
+function render(){
+  R=berekenAlles(S.maanden);
+  const ids=Object.keys(S.maanden).sort();
+  const i=ids.indexOf(S.huidig);
+  document.getElementById("monthbar").innerHTML=ids.length?`<button class="ghost" data-act="prev" ${i<=0?"disabled":""} aria-label="Vorige maand">‹</button>
+    <select id="maandkeuze" aria-label="Kies maand">${ids.slice().reverse().map(id=>`<option value="${id}" ${id===S.huidig?"selected":""}>${maandNaam(id)}</option>`).join("")}</select>
+    <button class="ghost" data-act="next" ${i>=ids.length-1?"disabled":""} aria-label="Volgende maand">›</button>
+    ${maand()&&maand().status!=="definitief"?`<span class="pill concept">Concept</span>`:""}
+    <button class="ghost" data-act="slot">Vergrendel</button>`:"";
+  document.getElementById("main").innerHTML=maand()?viewOverzicht():`<div class="panel empty">Nog geen maanden.</div>`;
+}
+function kopieer(tekst,btn){
+  const ok=()=>{if(btn){const o=btn.textContent;btn.textContent="Gekopieerd";setTimeout(()=>btn.textContent=o,1500);}};
+  try{navigator.clipboard.writeText(tekst).then(ok,()=>{});}catch(e){}
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-act]");if(!b) return;
+  const act=b.dataset.act,m=maand(),ids=Object.keys(S.maanden).sort();
+  if(act==="prev"||act==="next"){const i=ids.indexOf(S.huidig)+(act==="prev"?-1:1);if(ids[i]){S.huidig=ids[i];render();}}
+  else if(act==="kopieer") kopieer(b.dataset.tekst,b);
+  else if(act==="kopieer-app") kopieer(groepsappTekst(m,R[m.id],cfg()),b);
+  else if(act==="kopieer-spec"){const n=b.dataset.naam;kopieer(specTekst(n,R[m.id].per[n],m,cfg()),b);}
+  else if(act==="slot"){try{localStorage.removeItem("fbi-ww");}catch(e){}location.reload();}
+});
+document.addEventListener("change",e=>{if(e.target.id==="maandkeuze"){S.huidig=e.target.value;render();}});
+
+const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function open_(ww){
+  const basis=await crypto.subtle.importKey("raw",new TextEncoder().encode(ww),"PBKDF2",false,["deriveKey"]);
+  const sleutel=await crypto.subtle.deriveKey({name:"PBKDF2",salt:b64(SLOT.salt),iterations:SLOT.iter,hash:"SHA-256"},basis,{name:"AES-GCM",length:256},false,["decrypt"]);
+  const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:b64(SLOT.iv)},sleutel,b64(SLOT.data));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+async function probeer(ww,onthoud){
+  const knop=document.getElementById("openknop");knop.disabled=true;knop.textContent="Openen…";
+  try{
+    const d=await open_(ww);
+    S.config=d.config;S.maanden=d.maanden;
+    const ids=Object.keys(S.maanden).sort();S.huidig=ids[ids.length-1]||null;
+    if(onthoud){try{localStorage.setItem("fbi-ww",ww);}catch(e){}}
+    document.getElementById("lock").hidden=true;document.getElementById("main").hidden=false;document.getElementById("voet").hidden=false;
+    render();
+  }catch(e){
+    try{localStorage.removeItem("fbi-ww");}catch(_){}
+    document.getElementById("fout").textContent="Dat wachtwoord klopt niet.";
+  }finally{knop.disabled=false;knop.textContent="Openen";}
+}
+document.getElementById("lockform").addEventListener("submit",e=>{e.preventDefault();probeer(document.getElementById("ww").value,document.getElementById("onthoud").checked);});
+(function(){let ww=null;try{ww=localStorage.getItem("fbi-ww");}catch(e){}if(ww) probeer(ww,false);})();
+</script>
+</body></html>
