@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex, nofollow"><style>:root{padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
+<style>
+.bh-lock{position:fixed;inset:0;z-index:50;background:var(--bg,#F2F4F1);color:var(--ink,#1B2430);overflow:auto;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+.bh-box{max-width:440px;margin:10vh auto 0;display:flex;flex-direction:column;gap:12px;background:var(--surface,#fff);border:1px solid var(--line,#D7DDD6);border-radius:10px;padding:18px}
+.bh-box form{display:flex;flex-direction:column;gap:10px}
+.bh-box input{padding:9px 11px;font-size:15px}
+.bh-box .fout{color:var(--neg,#B23F2C);font-size:13px;min-height:1.2em}
+.bh-box details{font-size:13px;color:var(--muted,#5E6A74)}
+.bh-box ol{padding-left:18px;margin:6px 0}
+.bh-bar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--surface,#fff);border-top:1px solid var(--line,#D7DDD6);
+  padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
+.bh-bar .st{flex:1 1 220px}
+.bh-bar .st b{font-weight:600}
+.bh-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--pos,#2D7A4C);margin-right:6px}
+.bh-dot.dirty{background:var(--accent,#A8670A)}
+body{padding-bottom:90px!important}
+</style>
+<div class="bh-lock" id="bh-lock">
+  <div class="bh-box">
+    <h2 style="margin:0">Beheer huisrekening</h2>
+    <p class="small muted" style="margin:0">Hier stel je de maand op en publiceer je hem naar het overzicht van de huisgenoten.</p>
+    <form id="bh-form">
+      <input type="password" id="bh-ww" placeholder="Huiswachtwoord" aria-label="Huiswachtwoord" autocomplete="current-password" required>
+      <input type="password" id="bh-token" placeholder="GitHub-token (alleen de eerste keer)" aria-label="GitHub-token" autocomplete="off">
+      <button class="primary" type="submit" id="bh-open">Openen</button>
+      <div class="fout" id="bh-fout" role="alert"></div>
+    </form>
+    <details><summary>Hoe maak ik een GitHub-token?</summary>
+      <ol>
+        <li>Ga naar <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub → Fine-grained token</a>.</li>
+        <li>Repository access: <b>Only select repositories</b> → <b>MatejaCoder/FBI-Huisrekening</b>.</li>
+        <li>Permissions → Repository → <b>Contents: Read and write</b>.</li>
+        <li>Maak de token aan en plak hem hierboven. Hij blijft alleen op dit apparaat bewaard.</li>
+      </ol>
+    </details>
+  </div>
+</div>
+<div class="bh-bar" id="bh-bar" hidden>
+  <span class="st" id="bh-st"></span>
+  <button id="bh-weg" hidden>Wijzigingen weggooien</button>
+  <button class="primary" id="bh-pub">Publiceer naar site</button>
+  <a href="./" target="_blank" rel="noopener">Bekijk overzicht</a>
+  <button class="ghost" id="bh-uit">Uitloggen</button>
+</div>
+<script>
+(function(){
+  const REPO="MatejaCoder/FBI-Huisrekening", PAD="data.json", ITER=600000, KEY_TOKEN="fbi-beheer-token", KEY_CONCEPT="fbi-beheer-concept";
+  const ls={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}},del(k){try{localStorage.removeItem(k);}catch(e){}}};
+  const b64d=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+  const b64e=u=>{let s="";const a=new Uint8Array(u);for(let i=0;i<a.length;i+=0x8000)s+=String.fromCharCode.apply(null,a.subarray(i,i+0x8000));return btoa(s);};
+  async function sleutel(ww,salt,iter){
+    const basis=await crypto.subtle.importKey("raw",new TextEncoder().encode(ww),"PBKDF2",false,["deriveKey"]);
+    return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:iter,hash:"SHA-256"},basis,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+  }
+  async function ontsleutel(slot,ww){const k=await sleutel(ww,b64d(slot.salt),slot.iter);return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:b64d(slot.iv)},k,b64d(slot.data))));}
+  async function versleutel(obj,ww){const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));const k=await sleutel(ww,salt,ITER);
+    const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},k,new TextEncoder().encode(JSON.stringify(obj)));return {salt:b64e(salt),iv:b64e(iv),iter:ITER,data:b64e(ct)};}
+  async function gh(method,body,token){
+    const r=await fetch(`https://api.github.com/repos/${REPO}/contents/${PAD}`+(method==="GET"?`?ref=main&t=${Date.now()}`:""),{method,headers:{"Authorization":"Bearer "+token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},body:body?JSON.stringify(body):undefined,cache:"no-store"});
+    if(!r.ok){const e=new Error((await r.json().catch(()=>({}))).message||("HTTP "+r.status));e.status=r.status;throw e;}
+    return r.json();
+  }
+  // ---- in-memory database met dezelfde vorm als het dashboard verwacht ----
+  const D={config:null,maanden:{}};let WW=null,TOKEN=null,SHA=null,DIRTY=false;
+  const subs={config:[],maanden:[]};
+  const snapDoc=()=>({exists:!!D.config,id:"main",data:()=>D.config&&JSON.parse(JSON.stringify(D.config)),metadata:{fromCache:false,hasPendingWrites:false}});
+  const snapCol=()=>{const docs=Object.keys(D.maanden).sort().map(id=>({id,exists:true,data:()=>JSON.parse(JSON.stringify(D.maanden[id])),metadata:{}}));return {docs,size:docs.length,empty:!docs.length,docChanges:()=>[],metadata:{}};};
+  function wijziging(){DIRTY=true;ls.set(KEY_CONCEPT,JSON.stringify({sha:SHA,data:D}));balk();}
+  const db={
+    doc(path){
+      const [col,id]=path.split("/");
+      return {id,path,
+        get:async()=>col==="config"?snapDoc():{id,exists:!!D.maanden[id],data:()=>D.maanden[id]},
+        set:async(data)=>{if(col==="config") D.config=JSON.parse(JSON.stringify(data)); else D.maanden[id]=JSON.parse(JSON.stringify(data)); wijziging();},
+        update:async(data)=>{const t=col==="config"?D.config:D.maanden[id];Object.assign(t,data);wijziging();},
+        delete:async()=>{if(col==="maanden"){delete D.maanden[id];wijziging();subs.maanden.forEach(f=>f(snapCol()));}},
+        onSnapshot(f){if(col==="config"){subs.config.push(f);setTimeout(()=>f(snapDoc()),0);}return ()=>{};}};
+    },
+    collection(path){return {path,onSnapshot(f){subs.maanden.push(f);setTimeout(()=>f(snapCol()),0);return ()=>{};},get:async()=>snapCol()};}
+  };
+  let klaar;const gereed=new Promise(r=>klaar=r);
+  window.claude={use:async n=>{await gereed;return n==="db"?db:n==="user"?{canEdit:async()=>true,isOwner:async()=>true}:null;}};
+
+  function balk(tekst){
+    const st=document.getElementById("bh-st");if(!st) return;
+    document.getElementById("bh-bar").hidden=false;
+    document.getElementById("bh-weg").hidden=!DIRTY;
+    st.innerHTML=tekst||(DIRTY?`<span class="bh-dot dirty"></span><b>Niet gepubliceerd.</b> Je wijzigingen staan alleen op dit apparaat.`:`<span class="bh-dot"></span>Gelijk aan de site. Huisgenoten zien alleen maanden die op <b>definitief</b> staan.`);
+  }
+  async function openen(ww,token){
+    const fout=document.getElementById("bh-fout"),knop=document.getElementById("bh-open");fout.textContent="";knop.disabled=true;knop.textContent="Openen…";
+    try{
+      let remote;
+      try{remote=await gh("GET",null,token);}catch(e){throw new Error(e.status===401||e.status===403||e.status===404?"De GitHub-token werkt niet voor "+REPO+". Maak een nieuwe aan (zie uitleg).":"GitHub is niet bereikbaar: "+e.message);}
+      const slot=JSON.parse(new TextDecoder().decode(b64d(remote.content.replace(/\n/g,""))));
+      let data;try{data=await ontsleutel(slot,ww);}catch(e){throw new Error("Dat wachtwoord klopt niet.");}
+      SHA=remote.sha;WW=ww;TOKEN=token;ls.set(KEY_TOKEN,token);
+      D.config=data.config;D.maanden=data.maanden||{};
+      const c=ls.get(KEY_CONCEPT);
+      if(c){try{const o=JSON.parse(c);if(o.sha===SHA){D.config=o.data.config;D.maanden=o.data.maanden;DIRTY=true;}else ls.del(KEY_CONCEPT);}catch(e){ls.del(KEY_CONCEPT);}}
+      document.getElementById("bh-lock").hidden=true;balk();klaar();
+    }catch(e){fout.textContent=e.message;}
+    finally{knop.disabled=false;knop.textContent="Openen";}
+  }
+  document.addEventListener("DOMContentLoaded",()=>{
+    const t=ls.get(KEY_TOKEN);if(t){document.getElementById("bh-token").placeholder="GitHub-token (bewaard op dit apparaat)";}
+    document.getElementById("bh-form").addEventListener("submit",e=>{e.preventDefault();const tok=document.getElementById("bh-token").value.trim()||ls.get(KEY_TOKEN);
+      if(!tok){document.getElementById("bh-fout").textContent="Vul de eerste keer je GitHub-token in.";return;}openen(document.getElementById("bh-ww").value,tok);});
+    document.getElementById("bh-pub").addEventListener("click",async e=>{
+      const b=e.currentTarget;b.disabled=true;balk(`<span class="bh-dot dirty"></span>Versleutelen en publiceren…`);
+      try{
+        const slot=await versleutel({config:D.config,maanden:D.maanden},WW);
+        const ids=Object.keys(D.maanden).sort();
+        const res=await gh("PUT",{message:"Huisrekening bijgewerkt"+(ids.length?" ("+ids[ids.length-1]+")":""),content:btoa(JSON.stringify(slot)),sha:SHA,branch:"main"},TOKEN);
+        SHA=res.content.sha;DIRTY=false;ls.del(KEY_CONCEPT);
+        balk(`<span class="bh-dot"></span><b>Gepubliceerd.</b> Het overzicht is over ongeveer een minuut bijgewerkt.`);
+      }catch(er){balk(`<span class="bh-dot dirty"></span><b>Publiceren mislukt:</b> ${String(er.message).replace(/[<>&]/g,"")}${er.status===409?". De site is ondertussen ergens anders gewijzigd; log opnieuw in.":""}`);}
+      finally{b.disabled=false;}
+    });
+    document.getElementById("bh-weg").addEventListener("click",()=>{ls.del(KEY_CONCEPT);location.reload();});
+    document.getElementById("bh-uit").addEventListener("click",()=>{ls.del(KEY_TOKEN);location.reload();});
+  });
+})();
+</script>
+
+<title>FBI Huisrekening beheer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: kop met maandkiezer, tabbladen, daaronder kaarten per huisgenoot of de invoer van de maand. */
+:root{
+  --bg:#F2F4F1; --surface:#FFFFFF; --sunk:#E8ECE7; --ink:#1B2430; --muted:#5E6A74; --line:#D7DDD6;
+  --accent:#A8670A; --accent-ink:#FFFFFF; --accent-soft:#F5E6C6; --pos:#2D7A4C; --neg:#B23F2C; --neg-soft:#F6DDD7;
+  --f-display:"Bricolage Grotesque","Inter",system-ui,sans-serif;
+  --f-body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11161B; --surface:#1A2129; --sunk:#151B21; --ink:#E6EBEE; --muted:#97A3AD; --line:#2B343E;
+  --accent:#E2A23A; --accent-ink:#1B1406; --accent-soft:#3A2D15; --pos:#62BE88; --neg:#E58371; --neg-soft:#3B211C; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161B; --surface:#1A2129; --sunk:#151B21; --ink:#E6EBEE; --muted:#97A3AD; --line:#2B343E;
+  --accent:#E2A23A; --accent-ink:#1B1406; --accent-soft:#3A2D15; --pos:#62BE88; --neg:#E58371; --neg-soft:#3B211C; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 60px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:26px;font-weight:750}
+h2{font-size:18px;font-weight:650}
+h3{font-size:15px;font-weight:650}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+.label{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;justify-content:space-between}
+.brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.stamp{font-family:var(--f-display);font-weight:750;font-size:13px;letter-spacing:.12em;border:2px solid var(--accent);color:var(--accent);padding:1px 7px;border-radius:4px}
+.monthbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+select,input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 8px;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input.bad{border-color:var(--neg);background:var(--neg-soft)}
+input:disabled,select:disabled{opacity:.7}
+input.amt{width:92px;text-align:right;font-variant-numeric:tabular-nums}
+button{font:inherit;cursor:pointer;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:6px 11px;font-weight:500}
+button:hover{border-color:var(--muted)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+button.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:4px 7px}
+button.ghost:hover{color:var(--ink);border-color:var(--line)}
+button.danger{color:var(--neg)}
+button:disabled{opacity:.5;cursor:default}
+nav.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav.tabs a{padding:9px 14px;color:var(--muted);text-decoration:none;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+nav.tabs a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.pill.concept{background:var(--accent-soft);color:var(--accent)}
+.pill.def{background:var(--sunk);color:var(--pos)}
+.pill.neg{background:var(--neg-soft);color:var(--neg)}
+.save{font-size:12px;color:var(--muted)}
+.save.err{color:var(--neg)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.summary{display:flex;flex-wrap:wrap;gap:12px 32px;align-items:flex-end}
+.summary .big{font-family:var(--f-display);font-size:30px;font-weight:750;line-height:1}
+.iban{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.iban code{font-family:var(--f-body);font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.card .who{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card .amount{font-family:var(--f-display);font-size:26px;font-weight:750;line-height:1.05}
+.card .amount.neg{color:var(--pos)}
+.bar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--sunk)}
+.bar span{display:block;height:100%}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.c-huur{background:var(--ink);opacity:.75}
+.c-vast{background:var(--accent)}
+.c-var{background:var(--pos)}
+.c-pils{background:var(--muted);opacity:.6}
+details.spec summary{cursor:pointer;color:var(--muted);font-size:12.5px;list-style:none}
+details.spec summary::-webkit-details-marker{display:none}
+details.spec summary::before{content:"▸ ";}
+details.spec[open] summary::before{content:"▾ ";}
+.lines{display:grid;grid-template-columns:1fr auto;gap:3px 10px;font-size:13px;margin-top:6px}
+.lines .tot{border-top:1px solid var(--line);padding-top:4px;font-weight:600}
+.copyrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 9px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--surface)}
+thead th{font-size:12px;color:var(--muted);font-weight:600}
+tr.strong td{font-weight:650;background:var(--sunk)}
+tr.strong td:first-child{background:var(--sunk)}
+td.zero{color:var(--line)}
+textarea{width:100%;min-height:220px;font:13px/1.5 var(--f-body);color:var(--ink);background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:10px;resize:vertical}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:860px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.live{display:flex;flex-wrap:wrap;gap:6px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:8px;border-bottom:1px solid var(--line)}
+.live .chipv{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-size:12.5px;display:flex;gap:6px}
+.live .chipv b{font-weight:600}
+.post{border:1px solid var(--line);border-radius:9px;padding:12px;display:flex;flex-direction:column;gap:9px;background:var(--surface)}
+.post.vast{border-left:3px solid var(--accent)}
+.post-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.post-row .name{flex:1 1 200px}
+.post-row label{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.chip{padding:3px 10px;border-radius:999px;font-size:12.5px;border:1px solid var(--line);background:var(--sunk);color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink);font-weight:600}
+.chips .sep{width:1px;height:18px;background:var(--line);margin:0 3px}
+.losgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px}
+.losgrid label{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px}
+.preview{font-size:12.5px;color:var(--muted)}
+.preview b{color:var(--ink);font-weight:600}
+.warn{background:var(--accent-soft);color:var(--ink);border-radius:8px;padding:9px 12px;font-size:13px}
+.empty{padding:40px 16px;text-align:center;color:var(--muted)}
+.ptable td input.amt{width:84px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+@media (prefers-reduced-motion:no-preference){.card,.post{transition:border-color .15s}}
+</style>
+
+<div class="wrap" id="app">
+  <header class="top">
+    <div class="brand"><span class="stamp">FBI</span><h1>Huisrekening</h1></div>
+    <div class="monthbar" id="monthbar"></div>
+  </header>
+  <nav class="tabs" id="tabs">
+    <a href="#overzicht" data-tab="overzicht">Overzicht</a>
+    <a href="#opstellen" data-tab="opstellen">Maand opstellen</a>
+    <a href="#vaste-lasten" data-tab="vaste-lasten">Vaste lasten &amp; huisgenoten</a>
+  </nav>
+  <main id="main"><div class="empty">De huisrekening wordt geladen…</div></main>
+</div>
+
+<script>
+/*CALC-START*/
+const MAANDEN=["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
+function maandNaam(id){const [j,m]=id.split("-").map(Number);return MAANDEN[m-1]+" "+j;}
+function volgendeId(id){let [j,m]=id.split("-").map(Number);m++;if(m>12){m=1;j++;}return j+"-"+String(m).padStart(2,"0");}
+function vorigeId(id){let [j,m]=id.split("-").map(Number);m--;if(m<1){m=12;j--;}return j+"-"+String(m).padStart(2,"0");}
+const nz=v=>(typeof v==="number"&&isFinite(v))?v:0;
+function postBedragen(p){
+  const out={};
+  if(p.soort==="los"){for(const [n,v] of Object.entries(p.bedragen||{})) if(nz(v)) out[n]=nz(v);return out;}
+  const pers=p.personen||[];
+  if(!pers.length) return out;
+  if(p.soort==="pp"){for(const n of pers) out[n]=nz(p.bedrag);return out;}
+  const d=nz(p.deler)||pers.length;
+  for(const n of pers) out[n]=nz(p.totaal)/d;
+  return out;
+}
+function postTotaal(p){const b=postBedragen(p);return Object.values(b).reduce((a,c)=>a+c,0);}
+function pilsInfo(m){
+  const pc=m.pils||{prijs:0.65,perKrat:24,deler:9,personen:[]};
+  const strepen=m.strepen||{};
+  const somStrepen=Object.values(strepen).reduce((a,c)=>a+nz(c),0);
+  const kratten=nz(m.kratten);
+  const niet=kratten*nz(pc.perKrat)-somStrepen;
+  const toeslag=kratten?(niet/(nz(pc.deler)||1))*nz(pc.prijs):0;
+  return {pc,strepen,somStrepen,kratten,niet,toeslag};
+}
+// Bereken alle maanden in volgorde; openstaand = "te betalen" van de vorige maand, tenzij vastgelegd.
+function berekenAlles(maanden){
+  const ids=Object.keys(maanden).sort();
+  const res={};
+  for(const id of ids){
+    const m=maanden[id];
+    const prev=res[vorigeId(id)];
+    const namen=m.namen||[];
+    const pi=pilsInfo(m);
+    const per={};
+    for(const n of namen){
+      const open=(m.openstaand&&n in m.openstaand)?nz(m.openstaand[n]):(prev&&prev.per[n]?prev.per[n].totaal:0);
+      const betaald=nz((m.betaald||{})[n]);
+      const huur=nz((m.huur||{})[n]);
+      per[n]={open,betaald,huur,variabel:open-betaald+huur,posten:[],boete:nz((m.boetes||{})[n]),pils:0,totaal:0,vast:0,var:0};
+    }
+    (m.posten||[]).forEach(p=>{
+      const b=postBedragen(p);
+      for(const [n,v] of Object.entries(b)){ if(!per[n]) continue; per[n].posten.push({naam:p.naam||"(zonder naam)",bedrag:v,vast:!!p.vast}); if(p.vast) per[n].vast+=v; else per[n].var+=v; }
+    });
+    for(const n of namen){
+      const meeToeslag=(pi.pc.personen||[]).includes(n);
+      const str=nz(pi.strepen[n]);
+      per[n].pils=(str||meeToeslag)?nz(pi.pc.prijs)*str+(meeToeslag?pi.toeslag:0):0;
+      const r=per[n];
+      r.totaal=r.variabel+r.posten.reduce((a,c)=>a+c.bedrag,0)+r.boete+r.pils;
+    }
+    const totaal=namen.reduce((a,n)=>a+per[n].totaal,0);
+    res[id]={id,per,namen,pils:pi,totaal,heeftVorige:!!prev};
+  }
+  return res;
+}
+function eur(x){const v=Math.round(nz(x)*100)/100;const s=Math.abs(v).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});return (v<0?"-":"")+"€ "+s;}
+function groepsappTekst(m,r,cfg){
+  const volg=MAANDEN[(Number(m.id.split("-")[1]))%12];
+  const L=[`Huisrekening ${maandNaam(m.id)} staat klaar! 🍺`,
+    `Graag vóór 1 ${volg} overmaken naar ${cfg.betalen.iban} t.n.v. ${cfg.betalen.tnv}, o.v.v. 'Huisrekening ${MAANDEN[Number(m.id.split("-")[1])-1]} + je naam'.`,""];
+  for(const n of r.namen){const t=r.per[n].totaal; if(Math.abs(t)<0.005) continue; L.push(`${n}: ${t<0?"tegoed "+eur(-t):eur(t)}`);}
+  L.push("","Vragen of klopt er iets niet? Laat het me weten.");
+  return L.join("\n");
+}
+function specRegels(r){
+  const L=[];
+  if(Math.abs(r.variabel)>=0.005) L.push(["Huur + openstaand − betaald",r.variabel]);
+  for(const p of r.posten) L.push([p.naam,p.bedrag]);
+  if(r.boete) L.push(["Boetes",r.boete]);
+  if(Math.abs(r.pils)>=0.005) L.push(["Pils",r.pils]);
+  return L;
+}
+function specTekst(n,r,m,cfg){
+  const L=[`Hoi ${n}, je huisrekening ${maandNaam(m.id)}: ${eur(r.totaal)}`];
+  for(const [k,v] of specRegels(r)) L.push(`- ${k}: ${eur(v)}`);
+  L.push(`Overmaken naar ${cfg.betalen.iban} t.n.v. ${cfg.betalen.tnv}.`);
+  return L.join("\n");
+}
+/*CALC-END*/
+
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const S={db:null,config:null,maanden:{},huidig:null,tab:"overzicht",pending:{},saveState:"",bevestig:null,loaded:{config:false,maanden:false},canWrite:true};
+let R={};
+
+function parseNum(str){
+  let s=String(str).replace(/\s|€/g,"");
+  if(s==="") return null;
+  if(s.includes(",")&&s.includes(".")) s=s.replace(/\./g,"");
+  s=s.replace(/,/g,".");
+  if(!/^[0-9.+\-*/()]+$/.test(s)) return NaN;
+  try{const v=Function('"use strict";return ('+s+')')();return (typeof v==="number"&&isFinite(v))?v:NaN;}catch(e){return NaN;}
+}
+function fmtIn(v){if(v==null||v==="") return "";const r=Math.round(v*10000)/10000;return String(r).replace(".",",");}
+function maand(){return S.maanden[S.huidig];}
+function cfg(){return S.config||{huisgenoten:[],vastePosten:[],pils:{prijs:.65,perKrat:24,deler:9,personen:[]},betalen:{iban:"",tnv:""}};}
+function isLocked(){const m=maand();return !S.canWrite||(m&&m.status==="definitief");}
+function uid(){return Math.random().toString(36).slice(2,9);}
+
+function getRoot(path){return path.startsWith("m.")?maand():S.config;}
+function setPath(path,val){
+  const parts=path.split(".").slice(1);let o=getRoot(path);
+  for(let i=0;i<parts.length-1;i++){const k=parts[i];if(o[k]==null) o[k]={};o=o[k];}
+  const last=parts[parts.length-1];
+  if(val===null||val===undefined) delete o[last]; else o[last]=val;
+}
+function getPath(path){const parts=path.split(".").slice(1);let o=getRoot(path);for(const k of parts){if(o==null) return undefined;o=o[k];}return o;}
+
+// ---------- opslaan ----------
+const timers={};
+function bewaar(key){
+  if(!S.db||!S.canWrite) return;
+  S.pending[key]=true;setSave("Opslaan…");
+  clearTimeout(timers[key]);
+  timers[key]=setTimeout(async()=>{
+    try{
+      if(key==="config") await S.db.doc("config/main").set(JSON.parse(JSON.stringify(S.config)));
+      else { const m=S.maanden[key]; if(m) await S.db.doc("maanden/"+key).set(JSON.parse(JSON.stringify(m))); }
+      delete S.pending[key];
+      setSave(Object.keys(S.pending).length?"Opslaan…":"Opgeslagen");
+    }catch(e){delete S.pending[key];setSave("Niet opgeslagen: "+(e&&e.code==="not_granted"?"je mag dit niet wijzigen":(e&&e.message)||"fout"),true);}
+  },600);
+}
+function bewaarPad(path){bewaar(path.startsWith("m.")?S.huidig:"config");}
+function setSave(t,err){S.saveState=t;const el=document.getElementById("savestate");if(el){el.textContent=t;el.className="save"+(err?" err":"");}}
+
+// ---------- render ----------
+function render(){
+  R=berekenAlles(S.maanden);
+  renderMonthbar();
+  document.querySelectorAll("#tabs a").forEach(a=>a.setAttribute("aria-current",a.dataset.tab===S.tab?"page":"false"));
+  const main=document.getElementById("main");
+  if(!S.db){main.innerHTML=`<div class="panel empty">De huisrekening is alleen te zien als je bent ingelogd bij claude.ai.</div>`;return;}
+  if(!S.loaded.config||!S.loaded.maanden){main.innerHTML=`<div class="empty">De huisrekening wordt geladen…</div>`;return;}
+  if(S.tab==="vaste-lasten"){main.innerHTML=viewConfig();return;}
+  if(!maand()){main.innerHTML=`<div class="panel empty"><h2>Nog geen maanden</h2><p>Maak de eerste maand aan met <b>Nieuwe maand</b> hierboven. De vaste lasten worden dan automatisch ingevuld.</p></div>`;return;}
+  main.innerHTML=S.tab==="opstellen"?viewOpstellen():viewOverzicht();
+}
+function renderMonthbar(){
+  const ids=Object.keys(S.maanden).sort();
+  const el=document.getElementById("monthbar");
+  const m=maand();
+  const i=ids.indexOf(S.huidig);
+  el.innerHTML=`
+    ${ids.length?`<button class="ghost" data-act="prev" ${i<=0?"disabled":""} aria-label="Vorige maand">‹</button>
+    <select id="maandkeuze" aria-label="Kies maand">${ids.slice().reverse().map(id=>`<option value="${id}" ${id===S.huidig?"selected":""}>${maandNaam(id)}</option>`).join("")}</select>
+    <button class="ghost" data-act="next" ${i>=ids.length-1?"disabled":""} aria-label="Volgende maand">›</button>`:""}
+    ${m?`<span class="pill ${m.status==="definitief"?"def":"concept"}">${m.status==="definitief"?"Definitief":"Concept"}</span>`:""}
+    ${S.canWrite&&S.config?`<button class="primary" data-act="nieuw">+ Nieuwe maand${ids.length?": "+esc(maandNaam(volgendeId(ids[ids.length-1]))):""}</button>`:""}
+    <span class="save" id="savestate">${esc(S.saveState)}</span>`;
+}
+
+function viewOverzicht(){
+  const m=maand(),r=R[m.id],c=cfg();
+  const namen=r.namen;
+  const maxT=Math.max(1,...namen.map(n=>Math.max(0,r.per[n].totaal)));
+  const cards=namen.map(n=>{
+    const p=r.per[n];
+    const seg=[["c-huur",Math.max(0,p.variabel)],["c-vast",p.vast],["c-var",p.var+p.boete],["c-pils",p.pils]];
+    const regels=specRegels(p);
+    return `<article class="card">
+      <div class="who"><h3>${esc(n)}</h3>${p.totaal<-0.004?`<span class="pill def">tegoed</span>`:(Math.abs(p.totaal)<0.005?`<span class="pill">niets</span>`:"")}</div>
+      <div class="amount num ${p.totaal<-0.004?"neg":""}">${eur(p.totaal<-0.004?-p.totaal:p.totaal)}</div>
+      <div class="bar" style="width:${Math.max(4,Math.max(0,p.totaal)/maxT*100)}%">${seg.map(([k,v])=>v>0.004?`<span class="${k}" style="width:${v/Math.max(.01,seg.reduce((a,s)=>a+Math.max(0,s[1]),0))*100}%"></span>`:"").join("")}</div>
+      <details class="spec"><summary>Specificatie (${regels.length} regels)</summary>
+        <div class="lines">
+          ${r.heeftVorige||(m.openstaand)?`<span class="muted">Openstaand</span><span class="num muted">${eur(p.open)}</span><span class="muted">Betaald</span><span class="num muted">−${eur(p.betaald)}</span><span class="muted">Huur</span><span class="num muted">${eur(p.huur)}</span>`:""}
+          ${regels.map(([k,v])=>`<span>${esc(k)}</span><span class="num">${eur(v)}</span>`).join("")}
+          <span class="tot">Te betalen</span><span class="tot num">${eur(p.totaal)}</span>
+        </div>
+        <div class="copyrow"><button data-act="kopieer-spec" data-naam="${esc(n)}">Kopieer appje voor ${esc(n)}</button></div>
+      </details>
+    </article>`;}).join("");
+  const posten=(m.posten||[]);
+  const rows=[["Openstaand",n=>r.per[n].open],["Betaald vorige maand",n=>-r.per[n].betaald],["Huur",n=>r.per[n].huur]];
+  const body=[
+    ...rows.map(([k,f])=>[k,namen.map(f),false]),
+    ["Huur + openstaand − betaald",namen.map(n=>r.per[n].variabel),true],
+    ...posten.map(p=>{const b=postBedragen(p);return [p.naam||"(zonder naam)",namen.map(n=>b[n]||0),false];}),
+    ["Boetes",namen.map(n=>r.per[n].boete),false],
+    ["Pils",namen.map(n=>r.per[n].pils),false],
+    ["Te betalen",namen.map(n=>r.per[n].totaal),true]];
+  const tabel=`<div class="tablewrap"><table><thead><tr><th>Post</th>${namen.map(n=>`<th>${esc(n)}</th>`).join("")}<th>Totaal</th></tr></thead><tbody>
+    ${body.map(([k,vals,strong])=>`<tr class="${strong?"strong":""}"><td>${esc(k)}</td>${vals.map(v=>`<td class="${Math.abs(v)<0.005?"zero":""}">${Math.abs(v)<0.005?"–":eur(v).replace("€ ","")}</td>`).join("")}<td>${eur(vals.reduce((a,c)=>a+c,0)).replace("€ ","")}</td></tr>`).join("")}
+  </tbody></table></div>`;
+  return `<div class="wrap" style="gap:16px">
+    <section class="panel">
+      <div class="summary">
+        <div><div class="label">Te innen ${esc(maandNaam(m.id))}</div><div class="big num">${eur(r.totaal)}</div></div>
+        <div><div class="label">Huisgenoten</div><div class="num" style="font-size:18px;font-weight:600">${namen.filter(n=>Math.abs(r.per[n].totaal)>=0.005).length} betalen</div></div>
+        <div class="iban"><div><div class="label">Overmaken naar</div><code>${esc(c.betalen.iban)}</code> <span class="muted">t.n.v. ${esc(c.betalen.tnv)}</span></div><button class="ghost" data-act="kopieer" data-tekst="${esc(c.betalen.iban.replace(/\s/g,""))}">Kopieer IBAN</button></div>
+      </div>
+      <div class="legend"><span><i class="c-huur"></i>Huur en openstaand</span><span><i class="c-vast"></i>Vaste lasten</span><span><i class="c-var"></i>Variabel en boetes</span><span><i class="c-pils"></i>Pils</span></div>
+    </section>
+    <section class="cards">${cards}</section>
+    <section class="grid2">
+      <div class="panel"><div class="panel-head"><h2>Groepsapp</h2><button class="primary" data-act="kopieer-app">Kopieer tekst</button></div>
+        <textarea id="apptekst" readonly aria-label="Tekst voor de groepsapp">${esc(groepsappTekst(m,r,c))}</textarea></div>
+      <div class="panel"><div class="panel-head"><h2>Pils deze maand</h2></div>
+        <div class="lines" style="max-width:340px">
+          <span>Strepen huisgenoten</span><span class="num">${r.pils.somStrepen}</span>
+          <span>Strepen FBI (huis)</span><span class="num">${nz(m.strepenFbi)}</span>
+          <span>Kratten gehaald</span><span class="num">${r.pils.kratten} (${r.pils.kratten*nz(r.pils.pc.perKrat)} flesjes)</span>
+          <span>Niet gestreept</span><span class="num">${r.pils.niet}</span>
+          <span class="tot">Toeslag per bewoner</span><span class="tot num">${eur(r.pils.toeslag)}</span>
+        </div>
+        <p class="small muted">Toeslag = (kratten × 24 − strepen) ÷ ${nz(r.pils.pc.deler)} × ${eur(r.pils.pc.prijs)}, voor ${esc((r.pils.pc.personen||[]).join(", "))}.</p>
+      </div>
+    </section>
+    <section class="panel"><div class="panel-head"><h2>Hele maand in één tabel</h2><span class="small muted">Zelfde opbouw als het maandblad in Excel</span></div>${tabel}</section>
+  </div>`;
+}
+
+function chipsHtml(base,p,namen,locked){
+  const bew=cfg().huisgenoten.filter(h=>nz(h.huur)>0).map(h=>h.naam);
+  return `<div class="chips">${namen.map(n=>`<button class="chip" aria-pressed="${(p.personen||[]).includes(n)}" data-act="toggle" data-base="${base}" data-naam="${esc(n)}" ${locked?"disabled":""}>${esc(n)}</button>`).join("")}
+    <span class="sep"></span>
+    <button class="ghost small" data-act="kies" data-base="${base}" data-wie="bew" ${locked?"disabled":""}>Bewoners (${bew.length})</button>
+    <button class="ghost small" data-act="kies" data-base="${base}" data-wie="all" ${locked?"disabled":""}>Iedereen</button>
+    <button class="ghost small" data-act="kies" data-base="${base}" data-wie="none" ${locked?"disabled":""}>Niemand</button></div>`;
+}
+function postEditor(p,base,namen,locked,isConfig){
+  const dis=locked?"disabled":"";
+  const soort=p.soort||"verdeel";
+  let bedragVeld="";
+  if(soort==="verdeel") bedragVeld=`<label>Totaal <input class="amt" inputmode="decimal" data-path="${base}.totaal" data-num value="${esc(fmtIn(p.totaal))}" ${dis}></label>
+      <label title="Leeg laten = delen door het aantal gekozen personen">delen door <input class="amt" style="width:56px" inputmode="numeric" data-path="${base}.deler" data-num placeholder="${(p.personen||[]).length||"–"}" value="${esc(fmtIn(p.deler))}" ${dis}></label>`;
+  else if(soort==="pp") bedragVeld=`<label>Per persoon <input class="amt" inputmode="decimal" data-path="${base}.bedrag" data-num value="${esc(fmtIn(p.bedrag))}" ${dis}></label>`;
+  return `<div class="post ${p.vast?"vast":""}">
+    <div class="post-row">
+      <input class="name" data-path="${base}.naam" value="${esc(p.naam)}" placeholder="Omschrijving, bv. Pizza huisavond" aria-label="Omschrijving" ${dis}>
+      <select data-path="${base}.soort" data-struct aria-label="Verdeling" ${dis}>
+        <option value="verdeel" ${soort==="verdeel"?"selected":""}>Totaal verdelen</option>
+        <option value="pp" ${soort==="pp"?"selected":""}>Vast bedrag p.p.</option>
+        <option value="los" ${soort==="los"?"selected":""}>Bedrag per persoon apart</option>
+      </select>
+      ${bedragVeld}
+      ${isConfig?`<label>t/m <input style="width:96px" data-path="${base}.tot" placeholder="jjjj-mm" value="${esc(p.tot||"")}" ${dis}></label>`:(p.vast?`<span class="pill concept" title="Komt uit de vaste lasten">vast</span>`:"")}
+      <button class="ghost danger" data-act="del-post" data-base="${base}" aria-label="Post verwijderen" ${dis}>Verwijder</button>
+    </div>
+    ${soort==="los"?`<div class="losgrid">${namen.map(n=>`<label>${esc(n)} <input class="amt" inputmode="decimal" data-path="${base}.bedragen.${n}" data-num value="${esc(fmtIn((p.bedragen||{})[n]))}" ${dis}></label>`).join("")}</div>`:chipsHtml(base,p,namen,locked)}
+    ${isConfig&&p.notitie!==undefined?`<input class="small" data-path="${base}.notitie" value="${esc(p.notitie)}" placeholder="Notitie" ${dis}>`:""}
+    <div class="preview" data-calc="post:${base}"></div>
+  </div>`;
+}
+function postPreview(p){
+  const b=postBedragen(p),n=Object.keys(b).length,tot=postTotaal(p);
+  if(!n) return "Nog niemand gekozen";
+  if(p.soort==="los") return `${n} personen · totaal <b>${eur(tot)}</b>`;
+  const pp=Object.values(b)[0];
+  let s=`<b>${eur(pp)}</b> p.p. × ${n} = <b>${eur(tot)}</b>`;
+  if(p.soort==="verdeel"&&nz(p.deler)&&nz(p.deler)!==n) s+=` <span>(rest ${eur(nz(p.totaal)-tot)} wordt niet verdeeld)</span>`;
+  return s;
+}
+
+function viewOpstellen(){
+  const m=maand(),r=R[m.id],c=cfg(),locked=isLocked(),dis=locked?"disabled":"";
+  const namen=r.namen;
+  const eerste=!r.heeftVorige;
+  const ids=Object.keys(S.maanden).sort();
+  const laatste=ids[ids.length-1]===m.id;
+  const waarsch=[];
+  for(const p of c.vastePosten||[]){ if(p.tot&&p.tot===m.id) waarsch.push(`<b>${esc(p.naam)}</b> loopt deze maand voor het laatst.`); }
+  for(const p of c.vastePosten||[]){ if(p.tot&&p.tot<m.id&&!(m.posten||[]).some(q=>q.naam===p.naam)) waarsch.push(`<b>${esc(p.naam)}</b> is afgelopen (t/m ${esc(maandNaam(p.tot))}) en staat niet meer op de rekening.`); }
+  const vast=(m.posten||[]).map((p,i)=>[p,i]).filter(([p])=>p.vast);
+  const vari=(m.posten||[]).map((p,i)=>[p,i]).filter(([p])=>!p.vast);
+  return `<div class="wrap" style="gap:16px">
+    <div class="live" aria-label="Te betalen per huisgenoot">${namen.map(n=>`<span class="chipv"><span>${esc(n)}</span><b class="num" data-calc="tot:${esc(n)}"></b></span>`).join("")}<span class="chipv"><span>Totaal</span><b class="num" data-calc="som"></b></span></div>
+    ${locked&&S.canWrite?`<div class="warn">Deze maand staat op definitief. Zet hem terug naar concept om te wijzigen.</div>`:""}
+    ${waarsch.length?`<div class="warn">${waarsch.join("<br>")}</div>`:""}
+
+    <section class="panel">
+      <div class="panel-head"><h2>1. Betaald en huur</h2><span class="small muted">Openstaand komt automatisch uit ${eerste?"het Excel-blad van deze maand":"“te betalen” van "+esc(maandNaam(vorigeId(m.id)))}</span></div>
+      <div class="tablewrap"><table class="ptable"><thead><tr><th>Huisgenoot</th><th>Openstaand</th><th>Betaald vorige maand</th><th>Huur</th><th>Huur + open − betaald</th></tr></thead><tbody>
+      ${namen.map(n=>`<tr><td>${esc(n)}</td>
+        <td>${eerste?`<input class="amt" inputmode="decimal" data-path="m.openstaand.${n}" data-num value="${esc(fmtIn((m.openstaand||{})[n]))}" ${dis}>`:`<span data-calc="open:${esc(n)}"></span>`}</td>
+        <td><input class="amt" inputmode="decimal" data-path="m.betaald.${n}" data-num value="${esc(fmtIn((m.betaald||{})[n]))}" placeholder="0" ${dis}></td>
+        <td><input class="amt" inputmode="decimal" data-path="m.huur.${n}" data-num value="${esc(fmtIn((m.huur||{})[n]))}" placeholder="0" ${dis}></td>
+        <td data-calc="var:${esc(n)}"></td></tr>`).join("")}
+      </tbody></table></div>
+      <p class="small muted">Je kunt ook rekensommen typen, zoals <code>143+10+105,6</code>.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>2. Variabele posten</h2><button class="primary" data-act="add-post" ${dis}>+ Post toevoegen</button></div>
+      ${vari.length?vari.map(([p,i])=>postEditor(p,"m.posten."+i,namen,locked,false)).join(""):`<p class="muted">Nog geen variabele posten deze maand. Voeg er een toe, bijvoorbeeld een etentje of een eenmalige aankoop, en kies wie meebetaalt.</p>`}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>3. Pils en boetes</h2><span class="small muted">€ ${fmtIn(nz(r.pils.pc.prijs))} per streep, toeslag voor ${esc((r.pils.pc.personen||[]).length)} bewoners</span></div>
+      <div class="post-row">
+        <label>Kratten gehaald <input class="amt" style="width:70px" inputmode="numeric" data-path="m.kratten" data-num value="${esc(fmtIn(m.kratten))}" ${dis}></label>
+        <label>Strepen FBI (huis) <input class="amt" style="width:70px" inputmode="numeric" data-path="m.strepenFbi" data-num value="${esc(fmtIn(m.strepenFbi))}" ${dis}></label>
+        <span class="preview" data-calc="toeslag"></span>
+      </div>
+      <div class="tablewrap"><table class="ptable"><thead><tr><th>Huisgenoot</th><th>Strepen</th><th>Pils</th><th>Boetes (€)</th></tr></thead><tbody>
+      ${namen.map(n=>`<tr><td>${esc(n)}</td>
+        <td><input class="amt" inputmode="numeric" data-path="m.strepen.${n}" data-num value="${esc(fmtIn((m.strepen||{})[n]))}" placeholder="0" ${dis}></td>
+        <td data-calc="pils:${esc(n)}"></td>
+        <td><input class="amt" inputmode="decimal" data-path="m.boetes.${n}" data-num value="${esc(fmtIn((m.boetes||{})[n]))}" placeholder="0" ${dis}></td></tr>`).join("")}
+      </tbody></table></div>
+      <p class="small muted">Boetes: licht € 2, streep € 2,50, afwas 5-10-20-40-80-160, Pablo 7,5-15-30-60.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>4. Vaste lasten deze maand</h2><button data-act="herlaad-vast" ${dis} title="Vervangt de vaste posten van deze maand door de huidige vaste lasten">Opnieuw ophalen uit vaste lasten</button></div>
+      <p class="small muted">Automatisch overgenomen uit <a href="#vaste-lasten">Vaste lasten</a>. Hier kun je ze alleen voor deze maand aanpassen, bijvoorbeeld de schoonmaakster als ze vaker kwam.</p>
+      ${vast.map(([p,i])=>postEditor(p,"m.posten."+i,namen,locked,false)).join("")}
+    </section>
+
+    ${S.canWrite?`<section class="panel"><div class="actions">
+      ${m.status==="definitief"?`<button data-act="status" data-v="concept">Terug naar concept</button>`:`<button class="primary" data-act="status" data-v="definitief">Zet op definitief</button><span class="small muted">Definitief zet de invoer op slot. De volgende maand rekent altijd verder met deze bedragen.</span>`}
+      <span style="flex:1"></span>
+      ${laatste?(S.bevestig==="del-maand"?`<span class="small">Maand ${esc(maandNaam(m.id))} echt verwijderen?</span><button class="danger" data-act="del-maand-ok">Ja, verwijder</button><button data-act="annuleer">Nee</button>`:`<button class="ghost danger" data-act="del-maand">Maand verwijderen</button>`):""}
+    </div></section>`:""}
+  </div>`;
+}
+
+function viewConfig(){
+  const c=cfg(),locked=!S.canWrite,dis=locked?"disabled":"";
+  const namen=c.huisgenoten.map(h=>h.naam);
+  return `<div class="wrap" style="gap:16px">
+    <p class="muted">Wijzigingen hier gelden voor nieuwe maanden. Gebruik in <a href="#opstellen">Maand opstellen</a> “Opnieuw ophalen uit vaste lasten” om ze ook op de huidige maand toe te passen.</p>
+    <section class="panel">
+      <div class="panel-head"><h2>Huisgenoten en huur</h2><span class="small muted">Huur 0 = woont er niet (meer), betaalt alleen de posten waar hij of zij aan meedoet</span></div>
+      <div class="tablewrap"><table class="ptable"><thead><tr><th>Naam</th><th>Huur per maand</th><th>Pils-toeslag</th><th></th></tr></thead><tbody>
+      ${c.huisgenoten.map((h,i)=>`<tr><td><input style="width:130px" data-path="c.huisgenoten.${i}.naam" data-rename="${esc(h.naam)}" value="${esc(h.naam)}" ${dis}></td>
+        <td><input class="amt" inputmode="decimal" data-path="c.huisgenoten.${i}.huur" data-num value="${esc(fmtIn(h.huur))}" placeholder="0" ${dis}></td>
+        <td style="text-align:left"><button class="chip" aria-pressed="${(c.pils.personen||[]).includes(h.naam)}" data-act="toggle" data-base="c.pils" data-naam="${esc(h.naam)}" ${dis}>${(c.pils.personen||[]).includes(h.naam)?"doet mee":"niet"}</button></td>
+        <td>${S.bevestig==="del-hg-"+i?`<button class="danger" data-act="del-hg-ok" data-i="${i}">Zeker?</button>`:`<button class="ghost danger" data-act="del-hg" data-i="${i}" ${dis}>Verwijder</button>`}</td></tr>`).join("")}
+      </tbody></table></div>
+      <div class="actions"><button data-act="add-hg" ${dis}>+ Huisgenoot</button></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Vaste lasten</h2><button class="primary" data-act="add-vast" ${dis}>+ Vaste last</button></div>
+      <p class="small muted">Komen elke nieuwe maand automatisch terug, tot en met de maand bij “t/m” (leeg = doorlopend).</p>
+      ${(c.vastePosten||[]).map((p,i)=>postEditor(p,"c.vastePosten."+i,namen,locked,true)).join("")}
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Pils en betalen</h2></div>
+      <div class="post-row">
+        <label>Prijs per streep <input class="amt" inputmode="decimal" data-path="c.pils.prijs" data-num value="${esc(fmtIn(c.pils.prijs))}" ${dis}></label>
+        <label>Flesjes per krat <input class="amt" inputmode="numeric" data-path="c.pils.perKrat" data-num value="${esc(fmtIn(c.pils.perKrat))}" ${dis}></label>
+        <label>Toeslag delen door <input class="amt" inputmode="numeric" data-path="c.pils.deler" data-num value="${esc(fmtIn(c.pils.deler))}" ${dis}></label>
+      </div>
+      <div class="post-row">
+        <label>IBAN <input style="width:230px" data-path="c.betalen.iban" value="${esc(c.betalen.iban)}" ${dis}></label>
+        <label>t.n.v. <input style="width:160px" data-path="c.betalen.tnv" value="${esc(c.betalen.tnv)}" ${dis}></label>
+      </div>
+    </section>
+  </div>`;
+}
+
+// ---------- live berekeningen ----------
+function updateCalc(){
+  R=berekenAlles(S.maanden);
+  const m=maand();const r=m&&R[m.id];
+  document.querySelectorAll("[data-calc]").forEach(el=>{
+    const k=el.dataset.calc;let h="";
+    if(k.startsWith("post:")){const p=getPath(k.slice(5));h=p?postPreview(p):"";}
+    else if(r){
+      const [t,n]=[k.split(":")[0],k.split(":").slice(1).join(":")];
+      const p=n&&r.per[n];
+      if(t==="tot"&&p) h=eur(p.totaal);
+      else if(t==="open"&&p) h=eur(p.open);
+      else if(t==="var"&&p) h=eur(p.variabel);
+      else if(t==="pils"&&p) h=p.pils?eur(p.pils):"–";
+      else if(t==="som") h=eur(r.totaal);
+      else if(t==="toeslag") h=r.pils.kratten?`${r.pils.niet} flesjes niet gestreept → toeslag <b>${eur(r.pils.toeslag)}</b> per bewoner`:"Geen kratten ingevuld: geen toeslag";
+    }
+    el.innerHTML=h;
+  });
+}
+function renderAll(){render();updateCalc();}
+
+// ---------- acties ----------
+function nieuweMaand(){
+  const c=cfg();const ids=Object.keys(S.maanden).sort();
+  const now=new Date();
+  const id=ids.length?volgendeId(ids[ids.length-1]):now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+  const huur={};for(const h of c.huisgenoten) if(nz(h.huur)) huur[h.naam]=h.huur;
+  S.maanden[id]={id,namen:c.huisgenoten.map(h=>h.naam),huur,betaald:{},boetes:{},strepen:{},kratten:null,strepenFbi:null,
+    pils:JSON.parse(JSON.stringify(c.pils)),posten:vastePostenVoor(id),status:"concept",aangemaakt:new Date().toISOString()};
+  S.huidig=id;S.tab="opstellen";location.hash="opstellen";
+  bewaar(id);renderAll();
+}
+function vastePostenVoor(id){
+  return (cfg().vastePosten||[]).filter(p=>!p.tot||p.tot>=id).map(p=>{const q=JSON.parse(JSON.stringify(p));delete q.tot;delete q.notitie;q.vast=true;q.id=uid();return q;});
+}
+function basePost(base){return getPath(base);}
+function kopieer(tekst,btn){
+  const ok=()=>{if(btn){const o=btn.textContent;btn.textContent="Gekopieerd";setTimeout(()=>btn.textContent=o,1500);}};
+  try{navigator.clipboard.writeText(tekst).then(ok,()=>fallback());}catch(e){fallback();}
+  function fallback(){const ta=document.getElementById("apptekst");if(ta){ta.value=tekst;ta.focus();ta.select();if(btn) btn.textContent="Geselecteerd, kopieer met Ctrl/Cmd+C";}}
+}
+
+document.addEventListener("click",e=>{
+  const a=e.target.closest("[data-tab]");
+  if(a){e.preventDefault();S.tab=a.dataset.tab;S.bevestig=null;history.replaceState(null,"","#"+S.tab);renderAll();return;}
+  const b=e.target.closest("[data-act]");if(!b) return;
+  const act=b.dataset.act,m=maand(),c=S.config;
+  const ids=Object.keys(S.maanden).sort();
+  if(act==="prev"||act==="next"){const i=ids.indexOf(S.huidig)+(act==="prev"?-1:1);if(ids[i]){S.huidig=ids[i];S.bevestig=null;renderAll();}return;}
+  if(act==="nieuw"){nieuweMaand();return;}
+  if(act==="kopieer"){kopieer(b.dataset.tekst,b);return;}
+  if(act==="kopieer-app"){kopieer(groepsappTekst(m,R[m.id],cfg()),b);return;}
+  if(act==="kopieer-spec"){const n=b.dataset.naam;kopieer(specTekst(n,R[m.id].per[n],m,cfg()),b);return;}
+  if(!S.canWrite) return;
+  if(act==="toggle"){const p=basePost(b.dataset.base);const n=b.dataset.naam;p.personen=p.personen||[];
+    p.personen=p.personen.includes(n)?p.personen.filter(x=>x!==n):[...p.personen,n];
+    const order=(b.dataset.base.startsWith("m.")?m.namen:c.huisgenoten.map(h=>h.naam));p.personen.sort((x,y)=>order.indexOf(x)-order.indexOf(y));
+    bewaarPad(b.dataset.base);renderAll();return;}
+  if(act==="kies"){const p=basePost(b.dataset.base);const namen=b.dataset.base.startsWith("m.")?m.namen:c.huisgenoten.map(h=>h.naam);
+    const bew=c.huisgenoten.filter(h=>nz(h.huur)>0).map(h=>h.naam);
+    p.personen=b.dataset.wie==="all"?[...namen]:b.dataset.wie==="bew"?namen.filter(n=>bew.includes(n)):[];
+    bewaarPad(b.dataset.base);renderAll();return;}
+  if(act==="del-post"){const parts=b.dataset.base.split(".");const i=Number(parts.pop());const arr=getPath(parts.join("."));arr.splice(i,1);bewaarPad(b.dataset.base);renderAll();return;}
+  if(act==="add-post"){m.posten=m.posten||[];m.posten.push({id:uid(),naam:"",soort:"verdeel",totaal:null,personen:[]});bewaar(m.id);renderAll();
+    const ins=document.querySelectorAll('.post:not(.vast) input.name');if(ins.length) ins[ins.length-1].focus();return;}
+  if(act==="herlaad-vast"){m.posten=[...(m.posten||[]).filter(p=>!p.vast),...vastePostenVoor(m.id)];bewaar(m.id);renderAll();return;}
+  if(act==="status"){m.status=b.dataset.v;bewaar(m.id);renderAll();return;}
+  if(act==="del-maand"){S.bevestig="del-maand";renderAll();return;}
+  if(act==="annuleer"){S.bevestig=null;renderAll();return;}
+  if(act==="del-maand-ok"){const id=m.id;delete S.maanden[id];S.pending[id]=true;S.db.doc("maanden/"+id).delete().then(()=>{delete S.pending[id];setSave("Maand verwijderd");},er=>{delete S.pending[id];setSave("Verwijderen mislukt",true);});
+    const rest=Object.keys(S.maanden).sort();S.huidig=rest[rest.length-1]||null;S.bevestig=null;renderAll();return;}
+  if(act==="add-hg"){c.huisgenoten.push({naam:"Nieuw"+(c.huisgenoten.length+1),huur:0});bewaar("config");renderAll();return;}
+  if(act==="del-hg"){S.bevestig="del-hg-"+b.dataset.i;renderAll();return;}
+  if(act==="del-hg-ok"){const h=c.huisgenoten.splice(Number(b.dataset.i),1)[0];
+    for(const p of c.vastePosten) p.personen=(p.personen||[]).filter(x=>x!==h.naam);
+    c.pils.personen=(c.pils.personen||[]).filter(x=>x!==h.naam);S.bevestig=null;bewaar("config");renderAll();return;}
+  if(act==="add-vast"){c.vastePosten.push({id:uid(),naam:"",soort:"pp",bedrag:null,personen:[],tot:"",notitie:""});bewaar("config");renderAll();return;}
+});
+document.addEventListener("input",e=>{
+  const el=e.target;const path=el.dataset&&el.dataset.path;if(!path||!S.canWrite) return;
+  if(el.dataset.struct!==undefined) return;
+  if(el.dataset.rename!==undefined) return; // naam wijzigen pas bij 'change'
+  if(el.dataset.num!==undefined){const v=parseNum(el.value);if(Number.isNaN(v)){el.classList.add("bad");return;}el.classList.remove("bad");setPath(path,v);}
+  else setPath(path,el.value);
+  bewaarPad(path);updateCalc();
+  if(S.tab==="overzicht") render();
+});
+document.addEventListener("change",e=>{
+  const el=e.target;
+  if(el.id==="maandkeuze"){S.huidig=el.value;S.bevestig=null;renderAll();return;}
+  const path=el.dataset&&el.dataset.path;if(!path||!S.canWrite) return;
+  if(el.dataset.struct!==undefined){const p=getPath(path.split(".").slice(0,-1).join("."));
+    if(el.value==="los"&&p.soort!=="los"){const b=postBedragen(p);p.bedragen={};for(const [n,v] of Object.entries(b)) p.bedragen[n]=Math.round(v*100)/100;}
+    if(el.value!=="los"&&p.soort==="los"&&!(p.personen||[]).length) p.personen=Object.keys(p.bedragen||{});
+    p.soort=el.value;
+    bewaarPad(path);renderAll();return;}
+  if(el.dataset.rename!==undefined){const oud=el.dataset.rename,nieuw=el.value.trim();if(!nieuw||nieuw===oud){el.value=oud;return;}
+    if(S.config.huisgenoten.some(h=>h.naam===nieuw)){el.classList.add("bad");return;}
+    setPath(path,nieuw);for(const p of S.config.vastePosten) p.personen=(p.personen||[]).map(x=>x===oud?nieuw:x);
+    S.config.pils.personen=(S.config.pils.personen||[]).map(x=>x===oud?nieuw:x);bewaar("config");renderAll();return;}
+  if(el.dataset.num!==undefined&&!el.classList.contains("bad")) el.value=fmtIn(getPath(path));
+});
+window.addEventListener("hashchange",()=>{const t=location.hash.slice(1);if(["overzicht","opstellen","vaste-lasten"].includes(t)){S.tab=t;renderAll();}});
+
+// ---------- start ----------
+(function(){const t=location.hash.slice(1);if(["overzicht","opstellen","vaste-lasten"].includes(t)) S.tab=t;})();
+render();
+(async()=>{
+  const db=window.claude?await window.claude.use("db"):null;
+  S.db=db;
+  if(!db){render();return;}
+  const user=await window.claude.use("user");
+  try{const can=user?await user.canEdit():true;S.canWrite=can!==false;}catch(e){}
+  const timer=setTimeout(()=>{if(!S.loaded.config||!S.loaded.maanden){document.getElementById("main").innerHTML=`<div class="panel empty">Laden duurt lang. Ververs de pagina als dit zo blijft.</div>`;}},10000);
+  const busy=()=>{const a=document.activeElement;return a&&a.matches&&a.matches("#main input");};
+  db.doc("config/main").onSnapshot(s=>{
+    if(!S.pending.config){S.config=s.exists?s.data():null;}
+    if(S.config){S.config.huisgenoten=S.config.huisgenoten||[];S.config.vastePosten=S.config.vastePosten||[];S.config.pils=S.config.pils||{prijs:.65,perKrat:24,deler:9,personen:[]};S.config.betalen=S.config.betalen||{iban:"",tnv:""};}
+    S.loaded.config=true;if(S.loaded.maanden) clearTimeout(timer);
+    busy()?updateCalc():renderAll();
+  },err=>{S.loaded.config=true;setSave("Laden mislukt: "+err.message,true);renderAll();});
+  db.collection("maanden").onSnapshot(snap=>{
+    const nieuw={};for(const d of snap.docs){nieuw[d.id]=S.pending[d.id]&&S.maanden[d.id]?S.maanden[d.id]:d.data();}
+    for(const id of Object.keys(S.pending)) if(id!=="config"&&S.maanden[id]&&!nieuw[id]) nieuw[id]=S.maanden[id];
+    S.maanden=nieuw;
+    const ids=Object.keys(S.maanden).sort();
+    if(!S.huidig||!S.maanden[S.huidig]) S.huidig=ids[ids.length-1]||null;
+    S.loaded.maanden=true;if(S.loaded.config) clearTimeout(timer);
+    busy()?updateCalc():renderAll();
+  },err=>{S.loaded.maanden=true;setSave("Laden mislukt: "+err.message,true);renderAll();});
+})();
+</script>
+
+</body></html>

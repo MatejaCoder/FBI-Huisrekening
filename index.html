@@ -123,6 +123,14 @@ body{margin:0}
 .lock form{display:flex;flex-direction:column;gap:10px}
 .lock input[type=password]{padding:10px 12px;font-size:16px}
 .lock .fout{color:var(--neg);font-size:13px;min-height:1.2em}
+.copyrow{display:none}
+.grid2{grid-template-columns:minmax(0,1fr)!important}
+.grid2>.panel:first-child{display:none}
+.ik{display:flex;flex-direction:column;gap:12px}
+.ik .namen{display:flex;flex-wrap:wrap;gap:6px}
+.ik .groot{font-family:var(--f-display);font-size:40px;font-weight:750;line-height:1}
+.ik .lines{max-width:460px;font-size:14px}
+.ik .lines .sub{color:var(--muted)}
 .lock label.rem{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
 </style>
 </head><body>
@@ -142,10 +150,9 @@ body{margin:0}
     </form>
   </section>
   <main id="main" hidden></main>
-  <p class="small muted" id="voet" hidden>Alleen lezen. Klopt er iets niet? Laat het Mateja weten.</p>
+  <p class="small muted" id="voet" hidden>Alleen lezen. Klopt er iets niet? Laat het Mateja weten. · <a href="beheer.html">Beheer</a></p>
 </div>
 <script>
-const SLOT = {"salt": "cmd6B3bpa8QeTFK3Sqq5yw==", "iv": "grbByZBxlPyiv4fv", "iter": 600000, "data": "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"};
 /*CALC-START*/
 const MAANDEN=["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
 function maandNaam(id){const [j,m]=id.split("-").map(Number);return MAANDEN[m-1]+" "+j;}
@@ -303,7 +310,28 @@ function render(){
     <button class="ghost" data-act="next" ${i>=ids.length-1?"disabled":""} aria-label="Volgende maand">›</button>
     ${maand()&&maand().status!=="definitief"?`<span class="pill concept">Concept</span>`:""}
     <button class="ghost" data-act="slot">Vergrendel</button>`:"";
-  document.getElementById("main").innerHTML=maand()?viewOverzicht():`<div class="panel empty">Nog geen maanden.</div>`;
+  document.getElementById("main").innerHTML=maand()?viewIk()+viewOverzicht():`<div class="panel empty">Er staat nog geen definitieve maand online.</div>`;
+}
+function viewIk(){
+  const m=maand(),r=R[m.id],c=cfg();let ik=null;try{ik=localStorage.getItem("fbi-ik");}catch(e){}
+  if(!r.namen.includes(ik)) ik=null;
+  const chips=r.namen.map(n=>`<button class="chip" aria-pressed="${n===ik}" data-act="ik" data-naam="${esc(n)}">${esc(n)}</button>`).join("");
+  if(!ik) return `<section class="panel ik"><h2>Wie ben jij?</h2><p class="small muted">Kies je naam, dan zie je precies wat jij deze maand betaalt en waarvoor.</p><div class="namen">${chips}</div></section>`;
+  const p=r.per[ik];const regels=specRegels(p);
+  return `<section class="panel ik"><div class="namen">${chips}</div>
+    <div><div class="label">${esc(ik)} · ${esc(maandNaam(m.id))}</div><div class="groot num">${p.totaal<-0.004?"Tegoed "+eur(-p.totaal):eur(p.totaal)}</div></div>
+    <div class="lines">
+      <span class="sub">Openstaand van vorige maand</span><span class="num sub">${eur(p.open)}</span>
+      <span class="sub">Al betaald</span><span class="num sub">−${eur(p.betaald)}</span>
+      <span class="sub">Huur</span><span class="num sub">${eur(p.huur)}</span>
+      <span>Huur + openstaand − betaald</span><span class="num">${eur(p.variabel)}</span>
+      ${p.posten.map(x=>`<span>${esc(x.naam)}</span><span class="num">${eur(x.bedrag)}</span>`).join("")}
+      ${p.boete?`<span>Boetes</span><span class="num">${eur(p.boete)}</span>`:""}
+      ${Math.abs(p.pils)>=0.005?`<span>Pils (${nz((m.strepen||{})[ik])} strepen${(r.pils.pc.personen||[]).includes(ik)&&r.pils.toeslag?" + toeslag "+eur(r.pils.toeslag):""})</span><span class="num">${eur(p.pils)}</span>`:""}
+      <span class="tot">Te betalen</span><span class="tot num">${eur(p.totaal)}</span>
+    </div>
+    ${p.totaal>0.004?`<p class="small" style="margin:0">Maak over naar <b>${esc(c.betalen.iban)}</b> t.n.v. ${esc(c.betalen.tnv)}, o.v.v. "Huisrekening ${esc(MAANDEN[Number(m.id.split("-")[1])-1])} ${esc(ik)}". <button class="ghost" data-act="kopieer" data-tekst="${esc(c.betalen.iban.replace(/\s/g,""))}">Kopieer IBAN</button></p>`:""}
+  </section>`;
 }
 function kopieer(tekst,btn){
   const ok=()=>{if(btn){const o=btn.textContent;btn.textContent="Gekopieerd";setTimeout(()=>btn.textContent=o,1500);}};
@@ -313,6 +341,7 @@ document.addEventListener("click",e=>{
   const b=e.target.closest("[data-act]");if(!b) return;
   const act=b.dataset.act,m=maand(),ids=Object.keys(S.maanden).sort();
   if(act==="prev"||act==="next"){const i=ids.indexOf(S.huidig)+(act==="prev"?-1:1);if(ids[i]){S.huidig=ids[i];render();}}
+  else if(act==="ik"){try{localStorage.setItem("fbi-ik",b.dataset.naam);}catch(e){}render();}
   else if(act==="kopieer") kopieer(b.dataset.tekst,b);
   else if(act==="kopieer-app") kopieer(groepsappTekst(m,R[m.id],cfg()),b);
   else if(act==="kopieer-spec"){const n=b.dataset.naam;kopieer(specTekst(n,R[m.id].per[n],m,cfg()),b);}
@@ -321,7 +350,9 @@ document.addEventListener("click",e=>{
 document.addEventListener("change",e=>{if(e.target.id==="maandkeuze"){S.huidig=e.target.value;render();}});
 
 const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+let SLOT=null;
 async function open_(ww){
+  if(!SLOT){const r=await fetch("data.json?t="+Date.now(),{cache:"no-store"});if(!r.ok) throw new Error("geen data");SLOT=await r.json();}
   const basis=await crypto.subtle.importKey("raw",new TextEncoder().encode(ww),"PBKDF2",false,["deriveKey"]);
   const sleutel=await crypto.subtle.deriveKey({name:"PBKDF2",salt:b64(SLOT.salt),iterations:SLOT.iter,hash:"SHA-256"},basis,{name:"AES-GCM",length:256},false,["decrypt"]);
   const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:b64(SLOT.iv)},sleutel,b64(SLOT.data));
@@ -331,7 +362,7 @@ async function probeer(ww,onthoud){
   const knop=document.getElementById("openknop");knop.disabled=true;knop.textContent="Openen…";
   try{
     const d=await open_(ww);
-    S.config=d.config;S.maanden=d.maanden;
+    S.config=d.config;S.maanden={};for(const [k,v] of Object.entries(d.maanden||{})) if(v.status==="definitief") S.maanden[k]=v;
     const ids=Object.keys(S.maanden).sort();S.huidig=ids[ids.length-1]||null;
     if(onthoud){try{localStorage.setItem("fbi-ww",ww);}catch(e){}}
     document.getElementById("lock").hidden=true;document.getElementById("main").hidden=false;document.getElementById("voet").hidden=false;
