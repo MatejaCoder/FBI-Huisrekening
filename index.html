@@ -169,6 +169,12 @@ button.kaart .meer{font-size:12.5px;color:var(--accent);font-weight:600}
 .fotobox img{width:min(84vw,70vh,420px);height:auto;aspect-ratio:1;object-fit:cover;border-radius:18px;box-shadow:0 12px 40px rgb(0 0 0 / .5);border:4px solid #fff;background:#fff}
 .fotobox figcaption{color:#fff;font:750 22px/1.1 var(--f-display)}
 .fotobox-x{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:calc(14px + env(safe-area-inset-right,0px));width:40px;height:40px;border-radius:50%;border:0;background:rgb(255 255 255 / .9);color:#13213A;font-size:18px;cursor:pointer}
+.vopop{position:fixed;inset:0;z-index:210;background:rgb(8 14 26 / .55);display:grid;place-items:center;padding:24px;animation:fbIn .18s ease-out}
+.vopop-kaart{background:var(--surface);color:var(--ink);border-radius:18px;padding:26px 24px 20px;max-width:340px;text-align:center;box-shadow:0 14px 44px rgb(0 0 0 / .35);border:2px solid var(--accent);animation:voPop .35s cubic-bezier(.2,1.4,.4,1)}
+.vopop-icoon{font-size:46px;line-height:1}
+.vopop-kaart p{margin:12px 0 18px;font:750 22px/1.2 var(--f-display)}
+@keyframes voPop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion:reduce){.vopop,.vopop-kaart{animation:none}}
 @keyframes fbIn{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.fotobox{animation:none}.av.klik{transition:none}}
 @media (max-width:480px){.av.kaartfoto{width:64px;height:64px;font-size:24px}}
@@ -528,6 +534,14 @@ function persoonBlad(n,m,r,c){
       <div class="actions"><button data-act="kopieer" data-tekst="${esc(c.betalen.iban.replace(/\s/g,""))}">Kopieer IBAN</button><button class="copyrow" data-act="kopieer-spec" data-naam="${esc(n)}">Kopieer appje voor ${esc(n)}</button></div></div>`:""}
   </aside>`;
 }
+/* felicitatie: vorige maand volledig betaald, niets meegenomen */
+function allesBetaald(n){const m=maand();if(!m||!R[m.id]) return false;const p=R[m.id].per[n];return !!p&&p.open>0.005&&p.open-p.betaald<0.005;}
+function voDicht(){const x=document.getElementById("vopop");if(!x) return false;x.remove();const t=document.querySelector(".pb-x");if(t) t.focus();return true;}
+function voOpen(){
+  voDicht();const d=document.createElement("div");d.id="vopop";d.className="vopop";d.dataset.act="vo-dicht";
+  d.innerHTML=`<div class="vopop-kaart" role="alertdialog" aria-modal="true" aria-labelledby="vopop-t"><div class="vopop-icoon" aria-hidden="true">🍻</div><p id="vopop-t">Vo voor jou vriend, alles betaald vorige maand!</p><button type="button" class="primary" data-act="vo-dicht">Lekker</button></div>`;
+  document.body.appendChild(d);d.querySelector("button").focus();
+}
 function fotoDicht(){const x=document.getElementById("fotobox");if(!x) return false;x.remove();if(fotoDicht.terug&&document.body.contains(fotoDicht.terug)) fotoDicht.terug.focus();return true;}
 function fotoOpen(n){
   const f=((cfg()||{}).fotos||{})[n];if(typeof f!=="string"||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(f)) return;
@@ -539,11 +553,13 @@ function fotoOpen(n){
 function overzichtActie(act,b){
   if(act==="foto"){fotoOpen(b.dataset.naam);return true;}
   if(act==="foto-dicht"){fotoDicht();return true;}
-  if(act==="persoon"){if(!b.dataset.naam) return true;S.persoon=b.dataset.naam;render();setTimeout(()=>{const x=document.querySelector(".pb-x");if(x) x.focus();},0);return true;}
+  if(act==="persoon"){if(!b.dataset.naam) return true;S.persoon=b.dataset.naam;render();setTimeout(()=>{const x=document.querySelector(".pb-x");if(x) x.focus();if(allesBetaald(S.persoon)) voOpen();},0);return true;}
+  if(act==="vo-dicht"){voDicht();return true;}
   if(act==="sluit"){const n=S.persoon;S.persoon=null;render();const k=document.querySelector(`.kaart[data-naam="${CSS.escape(n||"")}"]`);if(k) k.focus();return true;}
   return false;
 }
 document.addEventListener("keydown",e=>{
+  if(document.getElementById("vopop")){if(e.key==="Escape"){e.preventDefault();voDicht();}return;}
   if(document.getElementById("fotobox")){if(e.key==="Escape"){e.preventDefault();fotoDicht();}return;}
   if(!S.persoon) return;
   if(e.key==="Escape"){overzichtActie("sluit",null);}
