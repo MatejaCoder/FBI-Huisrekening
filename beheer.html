@@ -240,6 +240,8 @@ textarea{width:100%;min-height:220px;font:13px/1.5 var(--f-body);color:var(--ink
 .losgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px}
 .sleutel{display:flex;flex-direction:column;gap:6px;background:var(--sunk);border-radius:8px;padding:9px 10px}
 .sl-in{display:inline-flex;align-items:center;gap:4px;color:var(--muted);font-size:12px}
+.fotoknop{cursor:pointer;display:inline-flex;vertical-align:middle}
+.fotoknop:hover .av{box-shadow:0 0 0 2px var(--accent)}
 .losgrid label{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px}
 .preview{font-size:12.5px;color:var(--muted)}
 .preview b{color:var(--ink);font-weight:600}
@@ -277,6 +279,16 @@ button.kaart .meer{font-size:12.5px;color:var(--accent);font-weight:600}
 .vk-bedrag{text-align:right;font-weight:600}
 .vk-rest{color:var(--muted)}
 @media (max-width:560px){.vk-rij{grid-template-columns:64px minmax(0,1fr) 56px}.vk-rest{grid-column:2/4;margin-top:-4px}}
+/* fotobolletjes */
+.metav{display:inline-flex;align-items:center;gap:8px}
+.metav.kolom{flex-direction:column;gap:3px}
+.av{flex:none;width:30px;height:30px;border-radius:50%;overflow:hidden;display:inline-grid;place-items:center;background:var(--accent-soft);color:var(--accent);font:700 13px/1 var(--f-body);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line)}
+.av img{width:100%;height:100%;object-fit:cover;display:block}
+.av.klein{width:22px;height:22px;font-size:10px;border-width:1px}
+.av.groot{width:44px;height:44px;font-size:17px}
+.vk-rij .vk-naam{gap:6px}
+.vk-rij{grid-template-columns:96px minmax(0,1fr) 64px 140px}
+@media (max-width:560px){.vk-rij{grid-template-columns:84px minmax(0,1fr) 56px}}
 /* maandtabel */
 .mt-wrap{overflow-x:auto;margin:0 -16px;padding:0 16px}
 table.mt{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
@@ -506,7 +518,7 @@ function viewOverzicht(){
     const seg=[["c-huur",Math.max(0,p.variabel)],["c-vast",p.vast],["c-var",p.var+p.boete],["c-pils",p.pils]];
     const somSeg=Math.max(.01,seg.reduce((a,s)=>a+Math.max(0,s[1]),0));
     return `<button class="card kaart" data-act="persoon" data-naam="${esc(n)}" aria-label="Kosten van ${esc(n)} bekijken">
-      <div class="who"><h3>${esc(n)}</h3>${p.totaal<-0.004?`<span class="pill def">tegoed</span>`:(Math.abs(p.totaal)<0.005?`<span class="pill">niets</span>`:"")}</div>
+      <div class="who"><h3 class="metav">${avatar(n)}${esc(n)}</h3>${p.totaal<-0.004?`<span class="pill def">tegoed</span>`:(Math.abs(p.totaal)<0.005?`<span class="pill">niets</span>`:"")}</div>
       <div class="amount num ${p.totaal<-0.004?"neg":""}">${eur(p.totaal<-0.004?-p.totaal:p.totaal)}</div>
       <div class="bar" style="width:${Math.max(4,Math.max(0,p.totaal)/maxT*100)}%">${seg.map(([k,v])=>v>0.004?`<span class="${k}" style="width:${v/somSeg*100}%"></span>`:"").join("")}</div>
       <span class="meer">Bekijk kosten <span aria-hidden="true">→</span></span>
@@ -540,6 +552,11 @@ function viewOverzicht(){
     ${maandTabel(m,r)}
   </div>${S.persoon&&r.per[S.persoon]?persoonBlad(S.persoon,m,r,c):""}`;
 }
+function avatar(n,maat){
+  const f=((cfg()||{}).fotos||{})[n];
+  const ok=typeof f==="string"&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(f);
+  return `<span class="av ${maat||""}" aria-hidden="true">${ok?`<img src="${f}" alt="">`:esc((n||"?").slice(0,1).toUpperCase())}</span>`;
+}
 function vakantieInfo(){
   const v=(cfg()&&cfg().vakantie)||null;if(!v) return null;
   const per={};for(const [n,b] of Object.entries(v.stand||{})) per[n]=nz(b);
@@ -559,11 +576,12 @@ function vakantieBlok(){
   const e0=x=>"€ "+Math.round(x).toLocaleString("nl-NL");
   const pTot=doelTot?pot/doelTot*100:0;
   const maandPP=nz(v.perMaand)||100;
+  const gem=namen.length?pot/namen.length:0;
   const rijen=namen.slice().sort((a,b)=>per[b]-per[a]||namen.indexOf(a)-namen.indexOf(b)).map(n=>{
     const g=per[n],p=doel?g/doel*100:0,rest=Math.max(0,doel-g),mnd=Math.ceil(rest/maandPP);
     const spaart=(cfg().vastePosten||[]).some(q=>/sparen.*vakantie/i.test(q.naam||"")&&(q.personen||[]).includes(n));
-    return `<div class="vk-rij${g<doel*0.5?" laag":""}">
-      <span class="vk-naam">${esc(n)}</span>
+    return `<div class="vk-rij${g<gem*0.75?" laag":""}">
+      <span class="vk-naam metav">${avatar(n,"klein")}${esc(n)}</span>
       <div class="vk-balk" role="img" aria-label="${esc(n)}: ${eur(g)} van ${eur(doel)}"><span style="width:${pct(p)}%"></span></div>
       <span class="vk-bedrag num">${e0(g)}</span>
       <span class="vk-rest small">${rest<=0.004?"doel gehaald ✓":spaart?`nog ${e0(rest)} · ±${mnd} mnd`:"spaart niet meer mee"}</span>
@@ -621,7 +639,7 @@ function maandTabel(m,r){
   const tot=per(p=>p.totaal);
   return `<section class="panel"><div class="panel-head"><h2>Hele maand</h2><span class="small muted">Bedragen in euro's · klik op een naam voor de details</span></div>
     <div class="mt-wrap"><table class="mt">
-      <thead><tr><th scope="col" class="mt-post">Post</th>${namen.map(n=>`<th scope="col"><button class="mt-naam" data-act="persoon" data-naam="${esc(n)}">${esc(n)}</button></th>`).join("")}<th scope="col" class="tc">Totaal</th></tr></thead>
+      <thead><tr><th scope="col" class="mt-post">Post</th>${namen.map(n=>`<th scope="col"><button class="mt-naam" data-act="persoon" data-naam="${esc(n)}"><span class="metav kolom">${avatar(n,"klein")}${esc(n)}</span></button></th>`).join("")}<th scope="col" class="tc">Totaal</th></tr></thead>
       <tbody>${h}</tbody>
       <tfoot><tr><th scope="row">Te betalen</th>${tot.map(v=>`<td>${fmt(v)}</td>`).join("")}<td class="tc">${fmt(tot.reduce((a,c)=>a+c,0))}</td></tr></tfoot>
     </table></div></section>`;
@@ -636,7 +654,7 @@ function persoonBlad(n,m,r,c){
   <aside class="pb" role="dialog" aria-modal="true" aria-label="Kosten van ${esc(n)}">
     <header class="pb-top">
       <button class="ghost" data-act="persoon" data-naam="${esc(vorige||"")}" ${vorige?"":"disabled"} aria-label="Vorige huisgenoot">‹</button>
-      <div class="pb-wie"><div class="label">${esc(maandNaam(m.id))}</div><h2>${esc(n)}</h2></div>
+      <div class="pb-wie"><div class="label">${esc(maandNaam(m.id))}</div><h2 class="metav" style="justify-content:center">${avatar(n,"groot")}${esc(n)}</h2></div>
       <button class="ghost" data-act="persoon" data-naam="${esc(volgende||"")}" ${volgende?"":"disabled"} aria-label="Volgende huisgenoot">›</button>
       <button class="ghost pb-x" data-act="sluit" aria-label="Sluiten">✕</button>
     </header>
@@ -793,7 +811,7 @@ function viewConfig(){
     <section class="panel">
       <div class="panel-head"><h2>Huisgenoten en huur</h2><span class="small muted">Huur 0 = woont er niet (meer), betaalt alleen de posten waar hij of zij aan meedoet</span></div>
       <div class="tablewrap"><table class="ptable"><thead><tr><th>Naam</th><th>Huur per maand</th><th title="Laatste maand in huis, voor posten die naar woonduur worden verdeeld">Woont t/m</th><th>Pils-toeslag</th><th></th></tr></thead><tbody>
-      ${c.huisgenoten.map((h,i)=>`<tr><td><input style="width:130px" data-path="c.huisgenoten.${i}.naam" data-rename="${esc(h.naam)}" value="${esc(h.naam)}" ${dis}></td>
+      ${c.huisgenoten.map((h,i)=>`<tr><td><label class="fotoknop" title="Foto kiezen voor ${esc(h.naam)}">${avatar(h.naam)}<input type="file" accept="image/*" data-foto="${esc(h.naam)}" ${dis} hidden></label>${(c.fotos||{})[h.naam]?`<button class="ghost small" data-act="foto-weg" data-naam="${esc(h.naam)}" ${dis} title="Foto verwijderen">✕</button>`:""} <input style="width:130px" data-path="c.huisgenoten.${i}.naam" data-rename="${esc(h.naam)}" value="${esc(h.naam)}" ${dis}></td>
         <td><input class="amt" inputmode="decimal" data-path="c.huisgenoten.${i}.huur" data-num value="${esc(fmtIn(h.huur))}" placeholder="0" ${dis}></td>
         <td><input style="width:92px" data-path="c.huisgenoten.${i}.woontTot" value="${esc(h.woontTot||"")}" placeholder="jjjj-mm" aria-label="Woont tot en met" ${dis}> <span class="small muted" data-calc="woon:${i}"></span></td>
         <td style="text-align:left"><button class="chip" aria-pressed="${(c.pils.personen||[]).includes(h.naam)}" data-act="toggle" data-base="c.pils" data-naam="${esc(h.naam)}" ${dis}>${(c.pils.personen||[]).includes(h.naam)?"doet mee":"niet"}</button></td>
@@ -891,6 +909,7 @@ document.addEventListener("click",e=>{
     p.personen=p.personen.includes(n)?p.personen.filter(x=>x!==n):[...p.personen,n];
     const order=(b.dataset.base.startsWith("m.")?m.namen:c.huisgenoten.map(h=>h.naam));p.personen.sort((x,y)=>order.indexOf(x)-order.indexOf(y));
     vulSleutel(p);bewaarPad(b.dataset.base);renderAll();return;}
+  if(act==="foto-weg"){if(c.fotos) delete c.fotos[b.dataset.naam];bewaar("config");renderAll();return;}
   if(act==="sleutel-ververs"){const p=basePost(b.dataset.base);p.gewichten=sleutelUitConfig();bewaarPad(b.dataset.base);renderAll();return;}
   if(act==="kies"){const p=basePost(b.dataset.base);const namen=b.dataset.base.startsWith("m.")?m.namen:c.huisgenoten.map(h=>h.naam);
     const bew=c.huisgenoten.filter(h=>nz(h.huur)>0).map(h=>h.naam);
@@ -923,8 +942,14 @@ document.addEventListener("input",e=>{
   bewaarPad(path);updateCalc();
   if(S.tab==="overzicht") render();
 });
+function maakFoto(file){return new Promise((ok,fout)=>{const url=URL.createObjectURL(file);const im=new Image();
+  im.onload=()=>{const z=Math.min(im.width,im.height),c=document.createElement("canvas");c.width=c.height=160;
+    c.getContext("2d").drawImage(im,(im.width-z)/2,(im.height-z)/2,z,z,0,0,160,160);URL.revokeObjectURL(url);ok(c.toDataURL("image/jpeg",.8));};
+  im.onerror=()=>{URL.revokeObjectURL(url);fout(new Error("geen afbeelding"));};im.src=url;});}
 document.addEventListener("change",e=>{
   const el=e.target;
+  if(el.dataset&&el.dataset.foto!==undefined&&el.files&&el.files[0]&&S.canWrite){const n=el.dataset.foto;
+    maakFoto(el.files[0]).then(d=>{S.config.fotos=S.config.fotos||{};S.config.fotos[n]=d;bewaar("config");renderAll();},()=>setSave("Dat bestand is geen afbeelding",true));return;}
   if(el.id==="maandkeuze"){S.huidig=el.value;S.bevestig=null;renderAll();return;}
   const path=el.dataset&&el.dataset.path;if(!path||!S.canWrite) return;
   if(el.dataset.struct!==undefined){const p=getPath(path.split(".").slice(0,-1).join("."));
