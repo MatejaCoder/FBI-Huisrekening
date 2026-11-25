@@ -17,6 +17,20 @@
 .bh-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--pos,#2D7A4C);margin-right:6px}
 .bh-dot.dirty{background:var(--accent,#A8670A)}
 body{padding-bottom:90px!important}
+.bh-hist{position:fixed;inset:0;z-index:70;background:rgb(8 14 26 / .55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 24px max(12px,env(safe-area-inset-left,0px))}
+.bh-hist-box{background:var(--surface,#fff);color:var(--ink,#13213A);border-radius:12px;max-width:640px;width:100%;margin-top:4vh;padding:16px 16px 18px;box-shadow:0 12px 40px rgb(0 0 0 / .3)}
+.bh-hist-kop{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.bh-hist-kop h2{margin:0;font-size:20px}
+.bh-v{border-top:1px solid var(--line,#C3D6E6);padding:10px 0}
+.bh-v-kop{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.bh-v-kop .wanneer{font-weight:600}
+.bh-v-kop .wat{font-size:12.5px;color:var(--muted,#4F6178)}
+.bh-v-maanden{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.bh-m{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--sunk,#EAF3FA);border-radius:8px;padding:7px 10px;font-size:13.5px}
+.bh-m .n{flex:1 1 160px}
+.bh-m .t{font-variant-numeric:tabular-nums;font-weight:600}
+.bh-m .ok{color:var(--pos,#2D7A4C);font-weight:600}
 </style>
 <div class="bh-lock" id="bh-lock">
   <div class="bh-box">
@@ -39,10 +53,19 @@ body{padding-bottom:90px!important}
     </details>
   </div>
 </div>
+<div class="bh-hist" id="bh-histpaneel" hidden role="dialog" aria-modal="true" aria-labelledby="bh-hist-t">
+  <div class="bh-hist-box">
+    <div class="bh-hist-kop"><h2 id="bh-hist-t">Publicatiegeschiedenis</h2><button class="ghost" id="bh-hist-x" aria-label="Sluiten">✕</button></div>
+    <p class="small muted" style="margin:0 0 10px">Kies een eerdere publicatie en zet een maand terug. Hij komt eerst in je concept; pas na <b>Publiceer naar site</b> zien huisgenoten hem.</p>
+    <div id="bh-hist-inhoud"></div>
+  </div>
+</div>
 <div class="bh-bar" id="bh-bar" hidden>
   <span class="st" id="bh-st"></span>
   <button id="bh-weg" hidden>Wijzigingen weggooien</button>
   <button class="primary" id="bh-pub">Publiceer naar site</button>
+  <button id="bh-hist">Geschiedenis</button>
+  <button id="bh-preview" title="Zo zien huisgenoten het, inclusief je concept. Er wordt niets gepubliceerd.">Preview</button>
   <a href="./" target="_blank" rel="noopener">Bekijk overzicht</a>
   <button class="ghost" id="bh-uit">Uitloggen</button>
 </div>
@@ -69,7 +92,8 @@ body{padding-bottom:90px!important}
   const subs={config:[],maanden:[]};
   const snapDoc=()=>({exists:!!D.config,id:"main",data:()=>D.config&&JSON.parse(JSON.stringify(D.config)),metadata:{fromCache:false,hasPendingWrites:false}});
   const snapCol=()=>{const docs=Object.keys(D.maanden).sort().map(id=>({id,exists:true,data:()=>JSON.parse(JSON.stringify(D.maanden[id])),metadata:{}}));return {docs,size:docs.length,empty:!docs.length,docChanges:()=>[],metadata:{}};};
-  function wijziging(){DIRTY=true;ls.set(KEY_CONCEPT,JSON.stringify({sha:SHA,data:D}));balk();}
+  function previewOpslaan(){let h=null;try{h=(typeof S!=="undefined"&&S&&S.huidig)||null;}catch(e){}ls.set("fbi-preview",JSON.stringify({config:D.config,maanden:D.maanden,huidig:h}));}
+  function wijziging(){DIRTY=true;ls.set(KEY_CONCEPT,JSON.stringify({sha:SHA,data:D}));balk();previewOpslaan();}
   const db={
     doc(path){
       const [col,id]=path.split("/");
@@ -123,8 +147,58 @@ body{padding-bottom:90px!important}
       }catch(er){balk(`<span class="bh-dot dirty"></span><b>Publiceren mislukt:</b> ${String(er.message).replace(/[<>&]/g,"")}${er.status===409?". De site is ondertussen ergens anders gewijzigd; log opnieuw in.":""}`);}
       finally{b.disabled=false;}
     });
+    // ---- publicatiegeschiedenis ----
+    const hp=document.getElementById("bh-histpaneel"),hi=document.getElementById("bh-hist-inhoud");const VERSIES={};
+    const ghGet=async url=>{const r=await fetch("https://api.github.com/repos/"+REPO+url,{headers:{"Authorization":"Bearer "+TOKEN,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},cache:"no-store"});if(!r.ok) throw new Error("HTTP "+r.status);return r.json();};
+    const hesc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    const datum=d=>new Date(d).toLocaleString("nl-NL",{weekday:"short",day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"});
+    const mNaam=id=>{try{return maandNaam(id);}catch(e){return id;}};
+    const euro=v=>{try{return eur(v);}catch(e){return "€ "+v.toFixed(2);}};
+    async function histLaden(){
+      hi.innerHTML=`<p class="small muted">Geschiedenis ophalen…</p>`;
+      try{
+        const lijst=await ghGet("/commits?path="+PAD+"&sha=main&per_page=30");
+        if(!lijst.length){hi.innerHTML=`<p class="small muted">Nog geen publicaties gevonden.</p>`;return;}
+        hi.innerHTML=lijst.map((c,i)=>`<div class="bh-v" data-sha="${hesc(c.sha)}"><div class="bh-v-kop"><div><div class="wanneer">${hesc(datum(c.commit.author.date))}${i===0?` <span class="pill">nu online</span>`:""}</div><div class="wat">${hesc(c.commit.message.split("\n")[0])}</div></div>
+          <button class="ghost" data-hist="open" data-sha="${hesc(c.sha)}">Bekijk maanden</button></div><div class="bh-v-maanden"></div></div>`).join("");
+      }catch(e){hi.innerHTML=`<p class="small" style="color:var(--neg)">Geschiedenis ophalen mislukt: ${hesc(e.message)}</p>`;}
+    }
+    async function versie(sha){
+      if(VERSIES[sha]) return VERSIES[sha];
+      const r=await ghGet("/contents/"+PAD+"?ref="+sha);
+      const slot=JSON.parse(new TextDecoder().decode(b64d(r.content.replace(/\n/g,""))));
+      return VERSIES[sha]=await ontsleutel(slot,WW);
+    }
+    async function toonVersie(sha,vak){
+      vak.innerHTML=`<p class="small muted" style="margin:0">Openen…</p>`;
+      let d;try{d=await versie(sha);}catch(e){vak.innerHTML=`<p class="small" style="margin:0;color:var(--neg)">Deze versie kon niet geopend worden.</p>`;return;}
+      let R2={};try{R2=berekenAlles(d.maanden||{});}catch(e){}
+      const ids=Object.keys(d.maanden||{}).sort().reverse();
+      vak.innerHTML=ids.map(id=>{const m=d.maanden[id],t=R2[id]?euro(R2[id].totaal):"";const nu=D.maanden[id];
+        const gelijk=nu&&JSON.stringify(nu)===JSON.stringify(m);
+        return `<div class="bh-m"><span class="n"><b>${hesc(mNaam(id))}</b> · ${hesc(m.status||"concept")}</span><span class="t">${t}</span>
+          ${gelijk?`<span class="small muted">gelijk aan je concept</span>`:`<button data-hist="terug" data-sha="${hesc(sha)}" data-maand="${hesc(id)}">Zet terug</button>`}</div>`;}).join("")||`<p class="small muted" style="margin:0">Geen maanden in deze versie.</p>`;
+    }
+    hi.addEventListener("click",async e=>{
+      const b=e.target.closest("[data-hist]");if(!b) return;
+      const sha=b.dataset.sha,vak=b.closest(".bh-v").querySelector(".bh-v-maanden");
+      if(b.dataset.hist==="open"){toonVersie(sha,vak);return;}
+      if(b.dataset.hist==="terug"){b.textContent="Zeker weten? Tik nog eens";b.dataset.hist="zeker";b.classList.add("primary");setTimeout(()=>{if(b.dataset.hist==="zeker"){b.dataset.hist="terug";b.textContent="Zet terug";b.classList.remove("primary");}},5000);return;}
+      if(b.dataset.hist==="zeker"){
+        const id=b.dataset.maand,d=await versie(sha);
+        D.maanden[id]=JSON.parse(JSON.stringify(d.maanden[id]));wijziging();subs.maanden.forEach(f=>f(snapCol()));
+        b.outerHTML=`<span class="ok">Teruggezet in je concept</span>`;
+        balk(`<span class="bh-dot dirty"></span><b>${hesc(mNaam(id))} teruggezet in je concept.</b> Controleer en kies daarna Publiceer naar site.`);
+      }
+    });
+    document.getElementById("bh-hist").addEventListener("click",()=>{hp.hidden=false;histLaden();document.getElementById("bh-hist-x").focus();});
+    const histDicht=()=>{hp.hidden=true;};
+    document.getElementById("bh-hist-x").addEventListener("click",histDicht);
+    hp.addEventListener("click",e=>{if(e.target===hp) histDicht();});
+    document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!hp.hidden) histDicht();});
+    document.getElementById("bh-preview").addEventListener("click",()=>{previewOpslaan();window.open("./?preview=1","fbi-preview");});
     document.getElementById("bh-weg").addEventListener("click",()=>{ls.del(KEY_CONCEPT);location.reload();});
-    document.getElementById("bh-uit").addEventListener("click",()=>{ls.del(KEY_TOKEN);location.reload();});
+    document.getElementById("bh-uit").addEventListener("click",()=>{ls.del(KEY_TOKEN);ls.del("fbi-preview");location.reload();});
   });
 })();
 </script>

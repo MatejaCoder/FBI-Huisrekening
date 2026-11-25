@@ -255,9 +255,12 @@ body{margin:0}
 .ik .groot{font-family:var(--f-display);font-size:40px;font-weight:750;line-height:1}
 .ik .lines{max-width:460px;font-size:14px}
 .ik .lines .sub{color:var(--muted)}
+.previewbalk{position:sticky;top:0;z-index:60;background:#13213A;color:#fff;font-size:13px;padding:9px max(16px,env(safe-area-inset-right,0px)) 9px max(16px,env(safe-area-inset-left,0px));text-align:center}
+.previewbalk b{color:#FBDB7A}
 .lock label.rem{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
 </style>
 </head><body>
+<div class="previewbalk" id="previewbalk" hidden role="status"><b>Preview</b> van je concept. Huisgenoten zien dit pas na <b>Publiceer naar site</b>. Wijzigingen in Beheer komen hier vanzelf door.</div>
 <div class="wrap" id="app">
   <header class="top">
     <div class="brand"><img class="wapen" src="wapen.png" alt="FBI-wapen" width="56" height="56"><div><h1>Huisrekening</h1><p class="leus kop">Let's do it to them...</p></div></div>
@@ -641,6 +644,23 @@ async function probeer(ww,onthoud){
   }finally{knop.disabled=false;knop.textContent="Openen";}
 }
 document.getElementById("lockform").addEventListener("submit",e=>{e.preventDefault();probeer(document.getElementById("ww").value,document.getElementById("onthoud").checked);});
-(function(){let ww=null;try{ww=localStorage.getItem("fbi-ww");}catch(e){}if(ww) probeer(ww,false);})();
+/* preview vanuit Beheer: concept uit dit apparaat tonen, niets publiceren */
+const PREVIEW=new URLSearchParams(location.search).has("preview");
+function laadPreview(eerste){
+  let d=null;try{d=JSON.parse(localStorage.getItem("fbi-preview")||"null");}catch(e){}
+  if(!d||!d.config){if(eerste) document.getElementById("fout").textContent="Geen preview gevonden. Open de preview via de knop in Beheer.";return;}
+  S.config=d.config;S.maanden=d.maanden||{};
+  const ids=Object.keys(S.maanden).sort();
+  if(eerste||!S.maanden[S.huidig]) S.huidig=(d.huidig&&S.maanden[d.huidig])?d.huidig:(ids[ids.length-1]||null);
+  document.getElementById("lock").hidden=true;document.getElementById("previewbalk").hidden=false;
+  document.getElementById("main").hidden=false;document.getElementById("voet").hidden=false;
+  render();
+}
+if(PREVIEW){
+  document.title="Preview · FBI Huisrekening";laadPreview(true);
+  window.addEventListener("storage",e=>{if(e.key==="fbi-preview") laadPreview(false);});
+}else{
+  (function(){let ww=null;try{ww=localStorage.getItem("fbi-ww");}catch(e){}if(ww) probeer(ww,false);})();
+}
 </script>
 </body></html>
