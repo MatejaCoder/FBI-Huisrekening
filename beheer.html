@@ -443,6 +443,9 @@ table.ov tfoot th{padding-left:10px;font-family:var(--f-display)}
 .boek-rij .fout{color:var(--neg);min-height:1em}
 .boek-ok{margin-top:12px;padding:9px 12px;border-radius:8px;background:color-mix(in srgb,var(--pos) 14%,var(--surface));color:var(--ink);font-size:14px;border:1px solid color-mix(in srgb,var(--pos) 40%,transparent)}
 .boek-log{margin-top:12px}
+.boek-stap .post{background:var(--surface)}
+.post.inkomst{border-left:4px solid var(--pos)}
+.ink-label{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--pos);margin-bottom:6px}
 .boek-log summary{cursor:pointer;font-weight:600;color:var(--accent);font-size:14px}
 .boek-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:14px}
 .boek-item>span:first-child{flex:1}
@@ -488,6 +491,11 @@ function volgendeId(id){let [j,m]=id.split("-").map(Number);m++;if(m>12){m=1;j++
 function vorigeId(id){let [j,m]=id.split("-").map(Number);m--;if(m<1){m=12;j--;}return j+"-"+String(m).padStart(2,"0");}
 const nz=v=>(typeof v==="number"&&isFinite(v))?v:0;
 function postBedragen(p){
+  const out=postBedragenRuw(p);
+  if(p.inkomst) for(const n in out) out[n]=-out[n];
+  return out;
+}
+function postBedragenRuw(p){
   const out={};
   if(p.soort==="los"){for(const [n,v] of Object.entries(p.bedragen||{})) if(nz(v)) out[n]=nz(v);return out;}
   const pers=p.personen||[];
@@ -863,9 +871,10 @@ function postEditor(p,base,namen,locked,isConfig){
       <label title="Leeg laten = delen door het aantal gekozen personen">delen door <input class="amt" style="width:56px" inputmode="numeric" data-path="${base}.deler" data-num placeholder="${(p.personen||[]).length||"–"}" value="${esc(fmtIn(p.deler))}" ${dis}></label>`;
   else if(soort==="sleutel") bedragVeld=`<label>Totaal <input class="amt" inputmode="decimal" data-path="${base}.totaal" data-num value="${esc(fmtIn(p.totaal))}" ${dis}></label>`;
   else if(soort==="pp") bedragVeld=`<label>Per persoon <input class="amt" inputmode="decimal" data-path="${base}.bedrag" data-num value="${esc(fmtIn(p.bedrag))}" ${dis}></label>`;
-  return `<div class="post ${p.vast?"vast":""}">
+  return `<div class="post ${p.vast?"vast":""} ${p.inkomst?"inkomst":""}">
+    ${p.inkomst?`<div class="ink-label">Inkomst · verlaagt wat de gekozen huisgenoten betalen</div>`:""}
     <div class="post-row">
-      <input class="name" data-path="${base}.naam" value="${esc(p.naam)}" placeholder="Omschrijving, bv. Pizza huisavond" aria-label="Omschrijving" ${dis}>
+      <input class="name" data-path="${base}.naam" value="${esc(p.naam)}" placeholder="${p.inkomst?"Omschrijving, bv. Statiegeld kratten":"Omschrijving, bv. Pizza huisavond"}" aria-label="Omschrijving" ${dis}>
       <select data-path="${base}.soort" data-struct aria-label="Verdeling" ${dis}>
         <option value="verdeel" ${soort==="verdeel"?"selected":""}>Totaal verdelen</option>
         <option value="pp" ${soort==="pp"?"selected":""}>Vast bedrag p.p.</option>
@@ -897,8 +906,11 @@ function postPreview(p){
 
 // ---------- boeking verwerken (per regel van het bankafschrift) ----------
 const BOEK_SOORTEN=[
-  {id:"huur",label:"Huur betaald",icoon:"🏠",uitleg:"Een huisgenoot heeft overgemaakt. Het bedrag telt bij Betaald."}
+  {id:"huur",label:"Huur betaald",icoon:"🏠",uitleg:"Een huisgenoot heeft overgemaakt. Het bedrag telt bij Betaald."},
+  {id:"uitgave",label:"Uitgave",icoon:"🧾",uitleg:"Kies hoe de uitgave verdeeld wordt en wie meebetaalt. Hij komt bij de variabele posten."},
+  {id:"inkomst",label:"Andere inkomsten",icoon:"💶",uitleg:"Geld dat binnenkomt en terug gaat naar huisgenoten. Vul het bedrag positief in; het gaat van hun rekening af."}
 ];
+function boekPost(m){const b=S.boek||{};const i=(m.posten||[]).findIndex(p=>p.id===b.postId);return i<0?null:{p:m.posten[i],i};}
 function boekPanel(m,r,locked){
   const b=S.boek||{},soort=BOEK_SOORTEN.find(x=>x.id===b.soort);
   const knoppen=BOEK_SOORTEN.map(x=>`<button class="boek-keuze ${b.soort===x.id?"aan":""}" data-act="boek-soort" data-soort="${x.id}" ${locked?"disabled":""}><span aria-hidden="true">${x.icoon}</span>${esc(x.label)}</button>`).join("");
@@ -914,6 +926,12 @@ function boekPanel(m,r,locked){
         <div class="fout small" id="boek-fout"></div></div>`:""}
     </div>`;
   }
+  if(soort&&(soort.id==="uitgave"||soort.id==="inkomst")){
+    const x=boekPost(m);
+    stap=x?`<div class="boek-stap"><p class="small muted" style="margin:0">${esc(soort.uitleg)}</p>
+      ${postEditor(x.p,"m.posten."+x.i,r.namen,locked,false)}
+      <div class="boek-invoer"><button class="primary" data-act="boek-post-klaar">Klaar</button><button class="ghost" data-act="boek-post-weg">Annuleren</button></div></div>`:"";
+  }
   const lijst=(m.boekingen||[]).slice().reverse();
   const log=lijst.length?`<details class="boek-log" ${S.boekLogOpen?"open":""}><summary>Geboekt deze maand (${lijst.length})</summary>${lijst.map(x=>{const so=BOEK_SOORTEN.find(y=>y.id===x.soort);
       return `<div class="boek-item"><span>${so?so.icoon:""} <b>${esc(x.naam)}</b> · ${esc(so?so.label:x.soort)}<small>${esc(new Date(x.ts).toLocaleString("nl-NL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))}</small></span><span class="num">${eur(x.bedrag)}</span>${locked?"":`<button class="ghost small" data-act="boek-weg" data-id="${esc(x.id)}" title="Boeking ongedaan maken">Ongedaan</button>`}</div>`;}).join("")}</details>`:"";
@@ -921,7 +939,18 @@ function boekPanel(m,r,locked){
     <div class="boek-keuzes">${knoppen}</div>${S.boekMelding?`<div class="boek-ok" role="status">${S.boekMelding}</div>`:""}${stap}${log}</section>`;
 }
 function boekActie(act,b,m){
-  if(act==="boek-soort"){S.boek=S.boek&&S.boek.soort===b.dataset.soort?null:{soort:b.dataset.soort};S.boekMelding="";renderAll();return true;}
+  if(act==="boek-soort"){
+    const oud=boekPost(m);if(oud&&!oud.p.naam&&!Object.keys(postBedragenRuw(oud.p)).length){m.posten.splice(oud.i,1);bewaar(m.id);}
+    const sr=b.dataset.soort;
+    if(S.boek&&S.boek.soort===sr){S.boek=null;}
+    else if(sr==="uitgave"||sr==="inkomst"){m.posten=m.posten||[];const np={id:uid(),naam:"",soort:"verdeel",totaal:null,personen:[]};if(sr==="inkomst") np.inkomst=true;m.posten.push(np);bewaar(m.id);S.boek={soort:sr,postId:np.id};
+      setTimeout(()=>{const i=document.querySelector(".boek-stap input.name");if(i) i.focus();},0);}
+    else S.boek={soort:sr};
+    S.boekMelding="";renderAll();return true;}
+  if(act==="boek-post-klaar"){const x=boekPost(m);if(x){const t=Object.values(postBedragen(x.p)).reduce((a,v)=>a+v,0);
+      S.boekMelding=`✓ ${x.p.inkomst?"Inkomst":"Uitgave"} <b>${esc(x.p.naam||"(zonder naam)")}</b> toegevoegd: ${eur(Math.abs(t))}${x.p.inkomst?" terug":""} over ${Object.keys(postBedragen(x.p)).length} huisgenoten. Staat bij de variabele posten.`;}
+    S.boek=null;renderAll();return true;}
+  if(act==="boek-post-weg"){const x=boekPost(m);if(x){m.posten.splice(x.i,1);bewaar(m.id);}S.boek=null;S.boekMelding="";renderAll();return true;}
   if(act==="boek-naam"){S.boek={...S.boek,naam:b.dataset.naam,bedrag:null};S.boekMelding="";renderAll();setTimeout(()=>{const i=document.getElementById("boek-bedrag");if(i){i.focus();i.select();}},0);return true;}
   if(act==="boek-stop"){S.boek=null;renderAll();return true;}
   if(act==="boek-ok"){
@@ -950,7 +979,7 @@ function viewOpstellen(){
   for(const p of c.vastePosten||[]){ if(p.tot&&p.tot===m.id) waarsch.push(`<b>${esc(p.naam)}</b> loopt deze maand voor het laatst.`); }
   for(const p of c.vastePosten||[]){ if(p.tot&&p.tot<m.id&&!(m.posten||[]).some(q=>q.naam===p.naam)) waarsch.push(`<b>${esc(p.naam)}</b> is afgelopen (t/m ${esc(maandNaam(p.tot))}) en staat niet meer op de rekening.`); }
   const vast=(m.posten||[]).map((p,i)=>[p,i]).filter(([p])=>p.vast);
-  const vari=(m.posten||[]).map((p,i)=>[p,i]).filter(([p])=>!p.vast);
+  const vari=(m.posten||[]).map((p,i)=>[p,i]).filter(([p])=>!p.vast&&!(S.boek&&S.boek.postId===p.id));
   return `<div class="wrap" style="gap:16px">
     <div class="live" aria-label="Te betalen per huisgenoot">${namen.map(n=>`<span class="chipv"><span>${esc(n)}</span><b class="num" data-calc="tot:${esc(n)}"></b></span>`).join("")}<span class="chipv"><span>Totaal</span><b class="num" data-calc="som"></b></span></div>
     ${locked&&S.canWrite?`<div class="warn">Deze maand staat op definitief. Zet hem terug naar concept om te wijzigen.</div>`:""}

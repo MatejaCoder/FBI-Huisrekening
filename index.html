@@ -243,6 +243,9 @@ table.ov tfoot th{padding-left:10px;font-family:var(--f-display)}
 .boek-rij .fout{color:var(--neg);min-height:1em}
 .boek-ok{margin-top:12px;padding:9px 12px;border-radius:8px;background:color-mix(in srgb,var(--pos) 14%,var(--surface));color:var(--ink);font-size:14px;border:1px solid color-mix(in srgb,var(--pos) 40%,transparent)}
 .boek-log{margin-top:12px}
+.boek-stap .post{background:var(--surface)}
+.post.inkomst{border-left:4px solid var(--pos)}
+.ink-label{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--pos);margin-bottom:6px}
 .boek-log summary{cursor:pointer;font-weight:600;color:var(--accent);font-size:14px}
 .boek-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:14px}
 .boek-item>span:first-child{flex:1}
@@ -331,6 +334,11 @@ function volgendeId(id){let [j,m]=id.split("-").map(Number);m++;if(m>12){m=1;j++
 function vorigeId(id){let [j,m]=id.split("-").map(Number);m--;if(m<1){m=12;j--;}return j+"-"+String(m).padStart(2,"0");}
 const nz=v=>(typeof v==="number"&&isFinite(v))?v:0;
 function postBedragen(p){
+  const out=postBedragenRuw(p);
+  if(p.inkomst) for(const n in out) out[n]=-out[n];
+  return out;
+}
+function postBedragenRuw(p){
   const out={};
   if(p.soort==="los"){for(const [n,v] of Object.entries(p.bedragen||{})) if(nz(v)) out[n]=nz(v);return out;}
   const pers=p.personen||[];
