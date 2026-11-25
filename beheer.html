@@ -236,6 +236,8 @@ textarea{width:100%;min-height:220px;font:13px/1.5 var(--f-body);color:var(--ink
 .chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink);font-weight:600}
 .chips .sep{width:1px;height:18px;background:var(--line);margin:0 3px}
 .losgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px}
+.sleutel{display:flex;flex-direction:column;gap:6px;background:var(--sunk);border-radius:8px;padding:9px 10px}
+.sl-in{display:inline-flex;align-items:center;gap:4px;color:var(--muted);font-size:12px}
 .losgrid label{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px}
 .preview{font-size:12.5px;color:var(--muted)}
 .preview b{color:var(--ink);font-weight:600}
@@ -315,14 +317,19 @@ function postBedragen(p){
   const pers=p.personen||[];
   if(!pers.length) return out;
   if(p.soort==="pp"){for(const n of pers) out[n]=nz(p.bedrag);return out;}
+  if(p.soort==="sleutel"){const g=p.gewichten||{};const W=pers.reduce((a,n)=>a+nz(g[n]),0);if(!W) return out;
+    for(const n of pers) if(nz(g[n])) out[n]=nz(p.totaal)*nz(g[n])/W;return out;}
   const d=nz(p.deler)||pers.length;
   for(const n of pers) out[n]=nz(p.totaal)/d;
   return out;
 }
-function postMeta(p){
+function postMeta(p,wie){
   const f=x=>"€ "+(Math.round(nz(x)*100)/100).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});
   if(p.soort==="los") return "eigen bedrag per persoon";
   if(p.soort==="pp") return f(p.bedrag)+" p.p.";
+  if(p.soort==="sleutel"){const g=p.gewichten||{};const W=(p.personen||[]).reduce((a,n)=>a+nz(g[n]),0);
+    const mnd=x=>x+(x===1?" maand":" maanden");
+    return wie?`${nz(g[wie])} van ${mnd(W)} in huis · totaal ${f(p.totaal)}`:`${f(p.totaal)} naar woonduur (${mnd(W)})`;}
   const d=nz(p.deler)||(p.personen||[]).length;return f(p.totaal)+" ÷ "+d;
 }
 function postTotaal(p){const b=postBedragen(p);return Object.values(b).reduce((a,c)=>a+c,0);}
@@ -353,7 +360,7 @@ function berekenAlles(maanden){
     }
     (m.posten||[]).forEach(p=>{
       const b=postBedragen(p);
-      for(const [n,v] of Object.entries(b)){ if(!per[n]) continue; per[n].posten.push({naam:p.naam||"(zonder naam)",bedrag:v,vast:!!p.vast,meta:postMeta(p)}); if(p.vast) per[n].vast+=v; else per[n].var+=v; }
+      for(const [n,v] of Object.entries(b)){ if(!per[n]) continue; per[n].posten.push({naam:p.naam||"(zonder naam)",bedrag:v,vast:!!p.vast,meta:postMeta(p,n)}); if(p.vast) per[n].vast+=v; else per[n].var+=v; }
     });
     for(const n of namen){
       const meeToeslag=(pi.pc.personen||[]).includes(n);
@@ -582,6 +589,7 @@ function postEditor(p,base,namen,locked,isConfig){
   let bedragVeld="";
   if(soort==="verdeel") bedragVeld=`<label>Totaal <input class="amt" inputmode="decimal" data-path="${base}.totaal" data-num value="${esc(fmtIn(p.totaal))}" ${dis}></label>
       <label title="Leeg laten = delen door het aantal gekozen personen">delen door <input class="amt" style="width:56px" inputmode="numeric" data-path="${base}.deler" data-num placeholder="${(p.personen||[]).length||"–"}" value="${esc(fmtIn(p.deler))}" ${dis}></label>`;
+  else if(soort==="sleutel") bedragVeld=`<label>Totaal <input class="amt" inputmode="decimal" data-path="${base}.totaal" data-num value="${esc(fmtIn(p.totaal))}" ${dis}></label>`;
   else if(soort==="pp") bedragVeld=`<label>Per persoon <input class="amt" inputmode="decimal" data-path="${base}.bedrag" data-num value="${esc(fmtIn(p.bedrag))}" ${dis}></label>`;
   return `<div class="post ${p.vast?"vast":""}">
     <div class="post-row">
@@ -590,12 +598,16 @@ function postEditor(p,base,namen,locked,isConfig){
         <option value="verdeel" ${soort==="verdeel"?"selected":""}>Totaal verdelen</option>
         <option value="pp" ${soort==="pp"?"selected":""}>Vast bedrag p.p.</option>
         <option value="los" ${soort==="los"?"selected":""}>Bedrag per persoon apart</option>
+        <option value="sleutel" ${soort==="sleutel"?"selected":""}>Naar woonduur (verdeelsleutel)</option>
       </select>
       ${bedragVeld}
       ${isConfig?`<label>t/m <input style="width:96px" data-path="${base}.tot" placeholder="jjjj-mm" value="${esc(p.tot||"")}" ${dis}></label>`:(p.vast?`<span class="pill concept" title="Komt uit de vaste lasten">vast</span>`:"")}
       <button class="ghost danger" data-act="del-post" data-base="${base}" aria-label="Post verwijderen" ${dis}>Verwijder</button>
     </div>
     ${soort==="los"?`<div class="losgrid">${namen.map(n=>`<label>${esc(n)} <input class="amt" inputmode="decimal" data-path="${base}.bedragen.${n}" data-num value="${esc(fmtIn((p.bedragen||{})[n]))}" ${dis}></label>`).join("")}</div>`:chipsHtml(base,p,namen,locked)}
+    ${soort==="sleutel"?`<div class="sleutel"><div class="small muted">Maanden in huis voor deze post. Wie langer in huis woont, betaalt naar verhouding meer.
+        <button class="ghost small" data-act="sleutel-ververs" data-base="${base}" ${dis}>Maanden opnieuw ophalen</button></div>
+      <div class="losgrid">${(p.personen||[]).map(n=>`<label>${esc(n)} <span class="sl-in"><input class="amt" style="width:56px" inputmode="numeric" data-path="${base}.gewichten.${n}" data-num value="${esc(fmtIn((p.gewichten||{})[n]))}" placeholder="0" ${dis}> mnd</span></label>`).join("")||`<span class="small muted">Kies hierboven wie meebetaalt.</span>`}</div></div>`:""}
     ${isConfig&&p.notitie!==undefined?`<input class="small" data-path="${base}.notitie" value="${esc(p.notitie)}" placeholder="Notitie" ${dis}>`:""}
     <div class="preview" data-calc="post:${base}"></div>
   </div>`;
@@ -604,6 +616,7 @@ function postPreview(p){
   const b=postBedragen(p),n=Object.keys(b).length,tot=postTotaal(p);
   if(!n) return "Nog niemand gekozen";
   if(p.soort==="los") return `${n} personen · totaal <b>${eur(tot)}</b>`;
+  if(p.soort==="sleutel") return Object.entries(b).map(([k,v])=>`${esc(k)} <b>${eur(v)}</b>`).join(" · ")+` = <b>${eur(tot)}</b>`;
   const pp=Object.values(b)[0];
   let s=`<b>${eur(pp)}</b> p.p. × ${n} = <b>${eur(tot)}</b>`;
   if(p.soort==="verdeel"&&nz(p.deler)&&nz(p.deler)!==n) s+=` <span>(rest ${eur(nz(p.totaal)-tot)} wordt niet verdeeld)</span>`;
@@ -680,9 +693,10 @@ function viewConfig(){
     <p class="muted">Wijzigingen hier gelden voor nieuwe maanden. Gebruik in <a href="#opstellen">Maand opstellen</a> “Opnieuw ophalen uit vaste lasten” om ze ook op de huidige maand toe te passen.</p>
     <section class="panel">
       <div class="panel-head"><h2>Huisgenoten en huur</h2><span class="small muted">Huur 0 = woont er niet (meer), betaalt alleen de posten waar hij of zij aan meedoet</span></div>
-      <div class="tablewrap"><table class="ptable"><thead><tr><th>Naam</th><th>Huur per maand</th><th>Pils-toeslag</th><th></th></tr></thead><tbody>
+      <div class="tablewrap"><table class="ptable"><thead><tr><th>Naam</th><th>Huur per maand</th><th title="Voor posten die naar woonduur worden verdeeld">Maanden in huis</th><th>Pils-toeslag</th><th></th></tr></thead><tbody>
       ${c.huisgenoten.map((h,i)=>`<tr><td><input style="width:130px" data-path="c.huisgenoten.${i}.naam" data-rename="${esc(h.naam)}" value="${esc(h.naam)}" ${dis}></td>
         <td><input class="amt" inputmode="decimal" data-path="c.huisgenoten.${i}.huur" data-num value="${esc(fmtIn(h.huur))}" placeholder="0" ${dis}></td>
+        <td><input class="amt" style="width:64px" inputmode="numeric" data-path="c.huisgenoten.${i}.maanden" data-num value="${esc(fmtIn(h.maanden))}" placeholder="–" ${dis}></td>
         <td style="text-align:left"><button class="chip" aria-pressed="${(c.pils.personen||[]).includes(h.naam)}" data-act="toggle" data-base="c.pils" data-naam="${esc(h.naam)}" ${dis}>${(c.pils.personen||[]).includes(h.naam)?"doet mee":"niet"}</button></td>
         <td>${S.bevestig==="del-hg-"+i?`<button class="danger" data-act="del-hg-ok" data-i="${i}">Zeker?</button>`:`<button class="ghost danger" data-act="del-hg" data-i="${i}" ${dis}>Verwijder</button>`}</td></tr>`).join("")}
       </tbody></table></div>
@@ -744,6 +758,8 @@ function nieuweMaand(){
 function vastePostenVoor(id){
   return (cfg().vastePosten||[]).filter(p=>!p.tot||p.tot>=id).map(p=>{const q=JSON.parse(JSON.stringify(p));delete q.tot;delete q.notitie;q.vast=true;q.id=uid();return q;});
 }
+function sleutelUitConfig(){const g={};for(const h of cfg().huisgenoten) if(nz(h.maanden)) g[h.naam]=h.maanden;return g;}
+function vulSleutel(p){if(p.soort!=="sleutel") return;const g=sleutelUitConfig();p.gewichten=p.gewichten||{};for(const n of p.personen||[]) if(p.gewichten[n]==null&&g[n]!=null) p.gewichten[n]=g[n];}
 function basePost(base){return getPath(base);}
 function kopieer(tekst,btn){
   const ok=()=>{if(btn){const o=btn.textContent;btn.textContent="Gekopieerd";setTimeout(()=>btn.textContent=o,1500);}};
@@ -767,11 +783,12 @@ document.addEventListener("click",e=>{
   if(act==="toggle"){const p=basePost(b.dataset.base);const n=b.dataset.naam;p.personen=p.personen||[];
     p.personen=p.personen.includes(n)?p.personen.filter(x=>x!==n):[...p.personen,n];
     const order=(b.dataset.base.startsWith("m.")?m.namen:c.huisgenoten.map(h=>h.naam));p.personen.sort((x,y)=>order.indexOf(x)-order.indexOf(y));
-    bewaarPad(b.dataset.base);renderAll();return;}
+    vulSleutel(p);bewaarPad(b.dataset.base);renderAll();return;}
+  if(act==="sleutel-ververs"){const p=basePost(b.dataset.base);p.gewichten=sleutelUitConfig();bewaarPad(b.dataset.base);renderAll();return;}
   if(act==="kies"){const p=basePost(b.dataset.base);const namen=b.dataset.base.startsWith("m.")?m.namen:c.huisgenoten.map(h=>h.naam);
     const bew=c.huisgenoten.filter(h=>nz(h.huur)>0).map(h=>h.naam);
     p.personen=b.dataset.wie==="all"?[...namen]:b.dataset.wie==="bew"?namen.filter(n=>bew.includes(n)):[];
-    bewaarPad(b.dataset.base);renderAll();return;}
+    vulSleutel(p);bewaarPad(b.dataset.base);renderAll();return;}
   if(act==="del-post"){const parts=b.dataset.base.split(".");const i=Number(parts.pop());const arr=getPath(parts.join("."));arr.splice(i,1);bewaarPad(b.dataset.base);renderAll();return;}
   if(act==="add-post"){m.posten=m.posten||[];m.posten.push({id:uid(),naam:"",soort:"verdeel",totaal:null,personen:[]});bewaar(m.id);renderAll();
     const ins=document.querySelectorAll('.post:not(.vast) input.name');if(ins.length) ins[ins.length-1].focus();return;}
@@ -802,6 +819,7 @@ document.addEventListener("change",e=>{
   if(el.id==="maandkeuze"){S.huidig=el.value;S.bevestig=null;renderAll();return;}
   const path=el.dataset&&el.dataset.path;if(!path||!S.canWrite) return;
   if(el.dataset.struct!==undefined){const p=getPath(path.split(".").slice(0,-1).join("."));
+    if(el.value==="sleutel"&&p.soort!=="sleutel"){p.gewichten=sleutelUitConfig();if(!(p.personen||[]).length) p.personen=Object.keys(p.gewichten).filter(n=>nz(p.gewichten[n])>0);}
     if(el.value==="los"&&p.soort!=="los"){const b=postBedragen(p);p.bedragen={};for(const [n,v] of Object.entries(b)) p.bedragen[n]=Math.round(v*100)/100;}
     if(el.value!=="los"&&p.soort==="los"&&!(p.personen||[]).length) p.personen=Object.keys(p.bedragen||{});
     p.soort=el.value;

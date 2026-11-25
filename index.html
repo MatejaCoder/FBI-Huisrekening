@@ -112,6 +112,8 @@ textarea{width:100%;min-height:220px;font:13px/1.5 var(--f-body);color:var(--ink
 .chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink);font-weight:600}
 .chips .sep{width:1px;height:18px;background:var(--line);margin:0 3px}
 .losgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px}
+.sleutel{display:flex;flex-direction:column;gap:6px;background:var(--sunk);border-radius:8px;padding:9px 10px}
+.sl-in{display:inline-flex;align-items:center;gap:4px;color:var(--muted);font-size:12px}
 .losgrid label{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px}
 .preview{font-size:12.5px;color:var(--muted)}
 .preview b{color:var(--ink);font-weight:600}
@@ -215,14 +217,19 @@ function postBedragen(p){
   const pers=p.personen||[];
   if(!pers.length) return out;
   if(p.soort==="pp"){for(const n of pers) out[n]=nz(p.bedrag);return out;}
+  if(p.soort==="sleutel"){const g=p.gewichten||{};const W=pers.reduce((a,n)=>a+nz(g[n]),0);if(!W) return out;
+    for(const n of pers) if(nz(g[n])) out[n]=nz(p.totaal)*nz(g[n])/W;return out;}
   const d=nz(p.deler)||pers.length;
   for(const n of pers) out[n]=nz(p.totaal)/d;
   return out;
 }
-function postMeta(p){
+function postMeta(p,wie){
   const f=x=>"€ "+(Math.round(nz(x)*100)/100).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});
   if(p.soort==="los") return "eigen bedrag per persoon";
   if(p.soort==="pp") return f(p.bedrag)+" p.p.";
+  if(p.soort==="sleutel"){const g=p.gewichten||{};const W=(p.personen||[]).reduce((a,n)=>a+nz(g[n]),0);
+    const mnd=x=>x+(x===1?" maand":" maanden");
+    return wie?`${nz(g[wie])} van ${mnd(W)} in huis · totaal ${f(p.totaal)}`:`${f(p.totaal)} naar woonduur (${mnd(W)})`;}
   const d=nz(p.deler)||(p.personen||[]).length;return f(p.totaal)+" ÷ "+d;
 }
 function postTotaal(p){const b=postBedragen(p);return Object.values(b).reduce((a,c)=>a+c,0);}
@@ -253,7 +260,7 @@ function berekenAlles(maanden){
     }
     (m.posten||[]).forEach(p=>{
       const b=postBedragen(p);
-      for(const [n,v] of Object.entries(b)){ if(!per[n]) continue; per[n].posten.push({naam:p.naam||"(zonder naam)",bedrag:v,vast:!!p.vast,meta:postMeta(p)}); if(p.vast) per[n].vast+=v; else per[n].var+=v; }
+      for(const [n,v] of Object.entries(b)){ if(!per[n]) continue; per[n].posten.push({naam:p.naam||"(zonder naam)",bedrag:v,vast:!!p.vast,meta:postMeta(p,n)}); if(p.vast) per[n].vast+=v; else per[n].var+=v; }
     });
     for(const n of namen){
       const meeToeslag=(pi.pc.personen||[]).includes(n);
