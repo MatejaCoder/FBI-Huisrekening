@@ -174,6 +174,7 @@ button.kaart .meer{font-size:12.5px;color:var(--accent);font-weight:600}
 .vopop-kaart{background:var(--surface);color:var(--ink);border-radius:18px;padding:26px 24px 20px;max-width:340px;text-align:center;box-shadow:0 14px 44px rgb(0 0 0 / .35);border:2px solid var(--accent);animation:voPop .35s cubic-bezier(.2,1.4,.4,1)}
 .vopop-kaart.boos{border-color:var(--neg)}
 .vopop-kaart.boos p{font-size:20px}
+.vopop-sam{display:block;width:min(190px,50vw);height:auto;margin:-8px auto 0;border-radius:8px}
 .vopop-icoon{font-size:46px;line-height:1}
 .vopop-kaart p{margin:12px 0 18px;font:750 22px/1.2 var(--f-display)}
 @keyframes voPop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
@@ -543,7 +544,7 @@ function tekort(n){const m=maand();if(!m||!R[m.id]) return 0;const p=R[m.id].per
 function voDicht(){const x=document.getElementById("vopop");if(!x) return false;x.remove();const t=document.querySelector(".pb-x");if(t) t.focus();return true;}
 function voOpen(te){
   voDicht();const d=document.createElement("div");d.id="vopop";d.className="vopop";d.dataset.act="vo-dicht";
-  d.innerHTML=te?`<div class="vopop-kaart boos" role="alertdialog" aria-modal="true" aria-labelledby="vopop-t"><div class="vopop-icoon" aria-hidden="true">🖐️</div><p id="vopop-t">Ej dikke henk, je hebt <span style="white-space:nowrap">${esc(eur(te))}</span> te weinig betaald. Eerste keer dat ik je zie krijg je vlakke!</p><button type="button" class="primary" data-act="vo-dicht">Ik maak het over</button></div>`
+  d.innerHTML=te?`<div class="vopop-kaart boos" role="alertdialog" aria-modal="true" aria-labelledby="vopop-t"><img class="vopop-sam" src="sam.jpg" alt="Uncle Sam wijst naar je" onerror="this.outerHTML='<div class=&quot;vopop-icoon&quot; aria-hidden=&quot;true&quot;>🖐️</div>'"><p id="vopop-t">Ej dikke henk, je hebt <span style="white-space:nowrap">${esc(eur(te))}</span> te weinig betaald. Eerste keer dat ik je zie krijg je vlakke!</p><button type="button" class="primary" data-act="vo-dicht">Ik maak het over</button></div>`
     :`<div class="vopop-kaart" role="alertdialog" aria-modal="true" aria-labelledby="vopop-t"><div class="vopop-icoon" aria-hidden="true">🍻</div><p id="vopop-t">Vo voor jou vriend, alles betaald vorige maand!</p><button type="button" class="primary" data-act="vo-dicht">Lekker</button></div>`;
   document.body.appendChild(d);d.querySelector("button").focus();
 }
