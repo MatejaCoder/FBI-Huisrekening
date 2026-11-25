@@ -101,7 +101,9 @@ body{padding-bottom:90px!important}
       SHA=remote.sha;WW=ww;TOKEN=token;ls.set(KEY_TOKEN,token);
       D.config=data.config;D.maanden=data.maanden||{};
       const c=ls.get(KEY_CONCEPT);
-      if(c){try{const o=JSON.parse(c);if(o.sha===SHA){D.config=o.data.config;D.maanden=o.data.maanden;DIRTY=true;}else ls.del(KEY_CONCEPT);}catch(e){ls.del(KEY_CONCEPT);}}
+      if(c){try{const o=JSON.parse(c);if(o.sha===SHA){D.config=o.data.config;D.maanden=o.data.maanden;DIRTY=true;}
+        else{/* site is ondertussen gewijzigd: instellingen van de site, maanden uit het concept behouden */
+          D.maanden=Object.assign({},D.maanden,o.data.maanden||{});DIRTY=true;ls.set(KEY_CONCEPT,JSON.stringify({sha:SHA,data:D}));}}catch(e){ls.del(KEY_CONCEPT);}}
       document.getElementById("bh-lock").hidden=true;balk();klaar();
     }catch(e){fout.textContent=e.message;}
     finally{knop.disabled=false;knop.textContent="Openen";}
@@ -693,10 +695,10 @@ function viewConfig(){
     <p class="muted">Wijzigingen hier gelden voor nieuwe maanden. Gebruik in <a href="#opstellen">Maand opstellen</a> “Opnieuw ophalen uit vaste lasten” om ze ook op de huidige maand toe te passen.</p>
     <section class="panel">
       <div class="panel-head"><h2>Huisgenoten en huur</h2><span class="small muted">Huur 0 = woont er niet (meer), betaalt alleen de posten waar hij of zij aan meedoet</span></div>
-      <div class="tablewrap"><table class="ptable"><thead><tr><th>Naam</th><th>Huur per maand</th><th title="Voor posten die naar woonduur worden verdeeld">Maanden in huis</th><th>Pils-toeslag</th><th></th></tr></thead><tbody>
+      <div class="tablewrap"><table class="ptable"><thead><tr><th>Naam</th><th>Huur per maand</th><th title="Laatste maand in huis, voor posten die naar woonduur worden verdeeld">Woont t/m</th><th>Pils-toeslag</th><th></th></tr></thead><tbody>
       ${c.huisgenoten.map((h,i)=>`<tr><td><input style="width:130px" data-path="c.huisgenoten.${i}.naam" data-rename="${esc(h.naam)}" value="${esc(h.naam)}" ${dis}></td>
         <td><input class="amt" inputmode="decimal" data-path="c.huisgenoten.${i}.huur" data-num value="${esc(fmtIn(h.huur))}" placeholder="0" ${dis}></td>
-        <td><input class="amt" style="width:64px" inputmode="numeric" data-path="c.huisgenoten.${i}.maanden" data-num value="${esc(fmtIn(h.maanden))}" placeholder="–" ${dis}></td>
+        <td><input style="width:92px" data-path="c.huisgenoten.${i}.woontTot" value="${esc(h.woontTot||"")}" placeholder="jjjj-mm" aria-label="Woont tot en met" ${dis}> <span class="small muted" data-calc="woon:${i}"></span></td>
         <td style="text-align:left"><button class="chip" aria-pressed="${(c.pils.personen||[]).includes(h.naam)}" data-act="toggle" data-base="c.pils" data-naam="${esc(h.naam)}" ${dis}>${(c.pils.personen||[]).includes(h.naam)?"doet mee":"niet"}</button></td>
         <td>${S.bevestig==="del-hg-"+i?`<button class="danger" data-act="del-hg-ok" data-i="${i}">Zeker?</button>`:`<button class="ghost danger" data-act="del-hg" data-i="${i}" ${dis}>Verwijder</button>`}</td></tr>`).join("")}
       </tbody></table></div>
@@ -729,6 +731,8 @@ function updateCalc(){
   document.querySelectorAll("[data-calc]").forEach(el=>{
     const k=el.dataset.calc;let h="";
     if(k.startsWith("post:")){const p=getPath(k.slice(5));h=p?postPreview(p):"";}
+    else if(k.startsWith("woon:")){const hg=cfg().huisgenoten[Number(k.slice(5))];const id=(m&&m.id)||new Date().toISOString().slice(0,7);
+      h=hg&&hg.woontTot?(/^\d{4}-\d{2}$/.test(hg.woontTot)?`${maandenTot(id,hg.woontTot)} mnd vanaf ${esc(maandNaam(id))}`:"schrijf als jjjj-mm"):"";}
     else if(r){
       const [t,n]=[k.split(":")[0],k.split(":").slice(1).join(":")];
       const p=n&&r.per[n];
@@ -758,7 +762,9 @@ function nieuweMaand(){
 function vastePostenVoor(id){
   return (cfg().vastePosten||[]).filter(p=>!p.tot||p.tot>=id).map(p=>{const q=JSON.parse(JSON.stringify(p));delete q.tot;delete q.notitie;q.vast=true;q.id=uid();return q;});
 }
-function sleutelUitConfig(){const g={};for(const h of cfg().huisgenoten) if(nz(h.maanden)) g[h.naam]=h.maanden;return g;}
+function maandenTot(id,tot){if(!/^\d{4}-\d{2}$/.test(tot||"")||!id) return 0;const [y,m]=id.split("-").map(Number),[ty,tm]=tot.split("-").map(Number);return Math.max(0,(ty*12+tm)-(y*12+m)+1);}
+function sleutelUitConfig(){const id=(maand()&&maand().id)||new Date().toISOString().slice(0,7);const g={};
+  for(const h of cfg().huisgenoten){const v=h.woontTot?maandenTot(id,h.woontTot):nz(h.maanden);if(v) g[h.naam]=v;}return g;}
 function vulSleutel(p){if(p.soort!=="sleutel") return;const g=sleutelUitConfig();p.gewichten=p.gewichten||{};for(const n of p.personen||[]) if(p.gewichten[n]==null&&g[n]!=null) p.gewichten[n]=g[n];}
 function basePost(base){return getPath(base);}
 function kopieer(tekst,btn){
