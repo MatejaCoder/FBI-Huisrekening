@@ -561,11 +561,12 @@ function vakantieBlok(){
   const maandPP=nz(v.perMaand)||100;
   const rijen=namen.slice().sort((a,b)=>per[b]-per[a]||namen.indexOf(a)-namen.indexOf(b)).map(n=>{
     const g=per[n],p=doel?g/doel*100:0,rest=Math.max(0,doel-g),mnd=Math.ceil(rest/maandPP);
+    const spaart=(cfg().vastePosten||[]).some(q=>/sparen.*vakantie/i.test(q.naam||"")&&(q.personen||[]).includes(n));
     return `<div class="vk-rij${g<doel*0.5?" laag":""}">
       <span class="vk-naam">${esc(n)}</span>
       <div class="vk-balk" role="img" aria-label="${esc(n)}: ${eur(g)} van ${eur(doel)}"><span style="width:${pct(p)}%"></span></div>
       <span class="vk-bedrag num">${e0(g)}</span>
-      <span class="vk-rest small">${rest>0.004?`nog ${e0(rest)} · ±${mnd} mnd`:"doel gehaald ✓"}</span>
+      <span class="vk-rest small">${rest<=0.004?"doel gehaald ✓":spaart?`nog ${e0(rest)} · ±${mnd} mnd`:"spaart niet meer mee"}</span>
     </div>`;}).join("");
   const mijl=[25,50,75].map(x=>`<i style="left:${x}%"></i>`).join("");
   return `<section class="panel vk">
