@@ -229,7 +229,7 @@ function postMeta(p,wie){
   if(p.soort==="pp") return f(p.bedrag)+" p.p.";
   if(p.soort==="sleutel"){const g=p.gewichten||{};const W=(p.personen||[]).reduce((a,n)=>a+nz(g[n]),0);
     const mnd=x=>x+(x===1?" maand":" maanden");
-    return wie?`${nz(g[wie])} van ${mnd(W)} in huis · totaal ${f(p.totaal)}`:`${f(p.totaal)} naar woonduur (${mnd(W)})`;}
+    return wie?`${nz(g[wie])} van ${mnd(W)} in huis · totaal ${f(p.totaal)}`:`${f(p.totaal)} via verdeelsleutel (${mnd(W)})`;}
   const d=nz(p.deler)||(p.personen||[]).length;return f(p.totaal)+" ÷ "+d;
 }
 function postTotaal(p){const b=postBedragen(p);return Object.values(b).reduce((a,c)=>a+c,0);}

@@ -331,7 +331,7 @@ function postMeta(p,wie){
   if(p.soort==="pp") return f(p.bedrag)+" p.p.";
   if(p.soort==="sleutel"){const g=p.gewichten||{};const W=(p.personen||[]).reduce((a,n)=>a+nz(g[n]),0);
     const mnd=x=>x+(x===1?" maand":" maanden");
-    return wie?`${nz(g[wie])} van ${mnd(W)} in huis · totaal ${f(p.totaal)}`:`${f(p.totaal)} naar woonduur (${mnd(W)})`;}
+    return wie?`${nz(g[wie])} van ${mnd(W)} in huis · totaal ${f(p.totaal)}`:`${f(p.totaal)} via verdeelsleutel (${mnd(W)})`;}
   const d=nz(p.deler)||(p.personen||[]).length;return f(p.totaal)+" ÷ "+d;
 }
 function postTotaal(p){const b=postBedragen(p);return Object.values(b).reduce((a,c)=>a+c,0);}
@@ -600,14 +600,14 @@ function postEditor(p,base,namen,locked,isConfig){
         <option value="verdeel" ${soort==="verdeel"?"selected":""}>Totaal verdelen</option>
         <option value="pp" ${soort==="pp"?"selected":""}>Vast bedrag p.p.</option>
         <option value="los" ${soort==="los"?"selected":""}>Bedrag per persoon apart</option>
-        <option value="sleutel" ${soort==="sleutel"?"selected":""}>Naar woonduur (verdeelsleutel)</option>
+        <option value="sleutel" ${soort==="sleutel"?"selected":""}>Verdeelsleutel</option>
       </select>
       ${bedragVeld}
       ${isConfig?`<label>t/m <input style="width:96px" data-path="${base}.tot" placeholder="jjjj-mm" value="${esc(p.tot||"")}" ${dis}></label>`:(p.vast?`<span class="pill concept" title="Komt uit de vaste lasten">vast</span>`:"")}
       <button class="ghost danger" data-act="del-post" data-base="${base}" aria-label="Post verwijderen" ${dis}>Verwijder</button>
     </div>
     ${soort==="los"?`<div class="losgrid">${namen.map(n=>`<label>${esc(n)} <input class="amt" inputmode="decimal" data-path="${base}.bedragen.${n}" data-num value="${esc(fmtIn((p.bedragen||{})[n]))}" ${dis}></label>`).join("")}</div>`:chipsHtml(base,p,namen,locked)}
-    ${soort==="sleutel"?`<div class="sleutel"><div class="small muted">Maanden in huis voor deze post. Wie langer in huis woont, betaalt naar verhouding meer.
+    ${soort==="sleutel"?`<div class="sleutel"><div class="small muted">Verdeelsleutel: maanden dat iemand nog in huis woont. Wie langer blijft, betaalt naar verhouding meer.
         <button class="ghost small" data-act="sleutel-ververs" data-base="${base}" ${dis}>Maanden opnieuw ophalen</button></div>
       <div class="losgrid">${(p.personen||[]).map(n=>`<label>${esc(n)} <span class="sl-in"><input class="amt" style="width:56px" inputmode="numeric" data-path="${base}.gewichten.${n}" data-num value="${esc(fmtIn((p.gewichten||{})[n]))}" placeholder="0" ${dis}> mnd</span></label>`).join("")||`<span class="small muted">Kies hierboven wie meebetaalt.</span>`}</div></div>`:""}
     ${isConfig&&p.notitie!==undefined?`<input class="small" data-path="${base}.notitie" value="${esc(p.notitie)}" placeholder="Notitie" ${dis}>`:""}
@@ -654,7 +654,7 @@ function viewOpstellen(){
     </section>
 
     <section class="panel">
-      <div class="panel-head"><h2>2. Variabele posten</h2><button class="primary" data-act="add-post" ${dis}>+ Post toevoegen</button></div>
+      <div class="panel-head"><h2>2. Variabele posten</h2><div class="actions"><button data-act="add-post" data-soort="sleutel" ${dis} title="Totaal verdelen naar hoe lang iemand nog in huis woont">+ Post met verdeelsleutel</button><button class="primary" data-act="add-post" ${dis}>+ Post toevoegen</button></div></div>
       ${vari.length?vari.map(([p,i])=>postEditor(p,"m.posten."+i,namen,locked,false)).join(""):`<p class="muted">Nog geen variabele posten deze maand. Voeg er een toe, bijvoorbeeld een etentje of een eenmalige aankoop, en kies wie meebetaalt.</p>`}
     </section>
 
@@ -796,7 +796,9 @@ document.addEventListener("click",e=>{
     p.personen=b.dataset.wie==="all"?[...namen]:b.dataset.wie==="bew"?namen.filter(n=>bew.includes(n)):[];
     vulSleutel(p);bewaarPad(b.dataset.base);renderAll();return;}
   if(act==="del-post"){const parts=b.dataset.base.split(".");const i=Number(parts.pop());const arr=getPath(parts.join("."));arr.splice(i,1);bewaarPad(b.dataset.base);renderAll();return;}
-  if(act==="add-post"){m.posten=m.posten||[];m.posten.push({id:uid(),naam:"",soort:"verdeel",totaal:null,personen:[]});bewaar(m.id);renderAll();
+  if(act==="add-post"){m.posten=m.posten||[];const np={id:uid(),naam:"",soort:"verdeel",totaal:null,personen:[]};
+    if(b.dataset.soort==="sleutel"){np.soort="sleutel";np.gewichten=sleutelUitConfig();np.personen=Object.keys(np.gewichten);}
+    m.posten.push(np);bewaar(m.id);renderAll();
     const ins=document.querySelectorAll('.post:not(.vast) input.name');if(ins.length) ins[ins.length-1].focus();return;}
   if(act==="herlaad-vast"){m.posten=[...(m.posten||[]).filter(p=>!p.vast),...vastePostenVoor(m.id)];bewaar(m.id);renderAll();return;}
   if(act==="status"){m.status=b.dataset.v;bewaar(m.id);renderAll();return;}
