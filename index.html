@@ -162,6 +162,15 @@ button.kaart .meer{font-size:12.5px;color:var(--accent);font-weight:600}
 .av.groot{width:44px;height:44px;font-size:17px}
 .kaart-rij{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .av.kaartfoto{width:76px;height:76px;font-size:28px;border-width:3px}
+.av.klik{cursor:zoom-in;transition:transform .15s ease,box-shadow .15s ease}
+.av.klik:hover{transform:scale(1.06);box-shadow:0 0 0 2px var(--accent)}
+.fotobox{position:fixed;inset:0;z-index:200;background:rgb(8 14 26 / .82);display:grid;place-items:center;padding:24px;cursor:zoom-out;animation:fbIn .18s ease-out}
+.fotobox figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:12px}
+.fotobox img{width:min(84vw,70vh,420px);height:auto;aspect-ratio:1;object-fit:cover;border-radius:18px;box-shadow:0 12px 40px rgb(0 0 0 / .5);border:4px solid #fff;background:#fff}
+.fotobox figcaption{color:#fff;font:750 22px/1.1 var(--f-display)}
+.fotobox-x{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:calc(14px + env(safe-area-inset-right,0px));width:40px;height:40px;border-radius:50%;border:0;background:rgb(255 255 255 / .9);color:#13213A;font-size:18px;cursor:pointer}
+@keyframes fbIn{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.fotobox{animation:none}.av.klik{transition:none}}
 @media (max-width:480px){.av.kaartfoto{width:64px;height:64px;font-size:24px}}
 .vk-rij .vk-naam{gap:6px}
 .vk-rij{grid-template-columns:96px minmax(0,1fr) 64px 140px}
@@ -369,7 +378,7 @@ function viewOverzicht(){
     const somSeg=Math.max(.01,seg.reduce((a,s)=>a+Math.max(0,s[1]),0));
     return `<button class="card kaart" data-act="persoon" data-naam="${esc(n)}" aria-label="Kosten van ${esc(n)} bekijken">
       <div class="who"><h3>${esc(n)}</h3>${p.totaal<-0.004?`<span class="pill def">tegoed</span>`:(Math.abs(p.totaal)<0.005?`<span class="pill">niets</span>`:"")}</div>
-      <div class="kaart-rij"><div class="amount num ${p.totaal<-0.004?"neg":""}">${eur(p.totaal<-0.004?-p.totaal:p.totaal)}</div>${avatar(n,"kaartfoto")}</div>
+      <div class="kaart-rij"><div class="amount num ${p.totaal<-0.004?"neg":""}">${eur(p.totaal<-0.004?-p.totaal:p.totaal)}</div>${avatar(n,"kaartfoto",true)}</div>
       <div class="bar" style="width:${Math.max(4,Math.max(0,p.totaal)/maxT*100)}%">${seg.map(([k,v])=>v>0.004?`<span class="${k}" style="width:${v/somSeg*100}%"></span>`:"").join("")}</div>
       <span class="meer">Bekijk kosten <span aria-hidden="true">→</span></span>
     </button>`;}).join("");
@@ -402,9 +411,10 @@ function viewOverzicht(){
     ${maandTabel(m,r)}
   </div>${S.persoon&&r.per[S.persoon]?persoonBlad(S.persoon,m,r,c):""}`;
 }
-function avatar(n,maat){
+function avatar(n,maat,klik){
   const f=((cfg()||{}).fotos||{})[n];
   const ok=typeof f==="string"&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(f);
+  if(ok&&klik) return `<span class="av ${maat||""} klik" data-act="foto" data-naam="${esc(n)}" role="button" aria-label="Foto van ${esc(n)} groot bekijken" title="Foto groot bekijken"><img src="${f}" alt=""></span>`;
   return `<span class="av ${maat||""}" aria-hidden="true">${ok?`<img src="${f}" alt="">`:esc((n||"?").slice(0,1).toUpperCase())}</span>`;
 }
 function vakantieInfo(){
@@ -504,7 +514,7 @@ function persoonBlad(n,m,r,c){
   <aside class="pb" role="dialog" aria-modal="true" aria-label="Kosten van ${esc(n)}">
     <header class="pb-top">
       <button class="ghost" data-act="persoon" data-naam="${esc(vorige||"")}" ${vorige?"":"disabled"} aria-label="Vorige huisgenoot">‹</button>
-      <div class="pb-wie"><div class="label">${esc(maandNaam(m.id))}</div><h2 class="metav" style="justify-content:center">${avatar(n,"groot")}${esc(n)}</h2></div>
+      <div class="pb-wie"><div class="label">${esc(maandNaam(m.id))}</div><h2 class="metav" style="justify-content:center">${avatar(n,"groot",true)}${esc(n)}</h2></div>
       <button class="ghost" data-act="persoon" data-naam="${esc(volgende||"")}" ${volgende?"":"disabled"} aria-label="Volgende huisgenoot">›</button>
       <button class="ghost pb-x" data-act="sluit" aria-label="Sluiten">✕</button>
     </header>
@@ -518,12 +528,23 @@ function persoonBlad(n,m,r,c){
       <div class="actions"><button data-act="kopieer" data-tekst="${esc(c.betalen.iban.replace(/\s/g,""))}">Kopieer IBAN</button><button class="copyrow" data-act="kopieer-spec" data-naam="${esc(n)}">Kopieer appje voor ${esc(n)}</button></div></div>`:""}
   </aside>`;
 }
+function fotoDicht(){const x=document.getElementById("fotobox");if(!x) return false;x.remove();if(fotoDicht.terug&&document.body.contains(fotoDicht.terug)) fotoDicht.terug.focus();return true;}
+function fotoOpen(n){
+  const f=((cfg()||{}).fotos||{})[n];if(typeof f!=="string"||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(f)) return;
+  fotoDicht();fotoDicht.terug=document.activeElement;
+  const d=document.createElement("div");d.id="fotobox";d.className="fotobox";d.setAttribute("role","dialog");d.setAttribute("aria-modal","true");d.setAttribute("aria-label","Foto van "+n);d.dataset.act="foto-dicht";
+  d.innerHTML=`<figure><img src="${f}" alt="Foto van ${esc(n)}"><figcaption>${esc(n)}</figcaption></figure><button type="button" class="fotobox-x" data-act="foto-dicht" aria-label="Sluiten">✕</button>`;
+  document.body.appendChild(d);d.querySelector(".fotobox-x").focus();
+}
 function overzichtActie(act,b){
+  if(act==="foto"){fotoOpen(b.dataset.naam);return true;}
+  if(act==="foto-dicht"){fotoDicht();return true;}
   if(act==="persoon"){if(!b.dataset.naam) return true;S.persoon=b.dataset.naam;render();setTimeout(()=>{const x=document.querySelector(".pb-x");if(x) x.focus();},0);return true;}
   if(act==="sluit"){const n=S.persoon;S.persoon=null;render();const k=document.querySelector(`.kaart[data-naam="${CSS.escape(n||"")}"]`);if(k) k.focus();return true;}
   return false;
 }
 document.addEventListener("keydown",e=>{
+  if(document.getElementById("fotobox")){if(e.key==="Escape"){e.preventDefault();fotoDicht();}return;}
   if(!S.persoon) return;
   if(e.key==="Escape"){overzichtActie("sluit",null);}
   else if((e.key==="ArrowLeft"||e.key==="ArrowRight")&&!(e.target.matches&&e.target.matches("input,textarea,select"))){
