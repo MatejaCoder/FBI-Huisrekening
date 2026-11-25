@@ -126,6 +126,31 @@ button.kaart{text-align:left;font:inherit;color:inherit;cursor:pointer;width:100
 button.kaart:hover{border-color:var(--accent)}
 button.kaart .meer{font-size:12.5px;color:var(--accent);font-weight:600}
 .hint{margin:-6px 0 -4px}
+/* spaarpot huisvakantie */
+.vk{padding:0;overflow:hidden;gap:0}
+.vk-hero{position:relative;height:150px;background:#FFD9A0}
+.vk-scene{position:absolute;inset:0;width:100%;height:100%;display:block}
+.vk-titel{position:absolute;left:18px;top:16px;right:18px}
+.vk-titel h2{font-size:26px;color:#1B2A3F;text-shadow:0 1px 2px rgb(255 230 190 / .9)}
+.vk-label{color:#6A4512}
+.vk-body{padding:16px;display:flex;flex-direction:column;gap:12px}
+.vk-kop{display:flex;flex-wrap:wrap;gap:10px 32px;align-items:flex-end}
+.vk-pot{font-family:var(--f-display);font-size:34px;font-weight:750;line-height:1;color:var(--ink)}
+.vk-doel{font-size:18px;font-weight:600}
+.vk-totaal{position:relative;height:18px;border-radius:9px;background:var(--sunk);border:1px solid var(--line);margin-top:6px}
+.vk-totaal>span{position:absolute;left:0;top:0;bottom:0;border-radius:9px;background:linear-gradient(90deg,#2E9CB8,#3F9E62)}
+.vk-totaal i{position:absolute;top:3px;bottom:3px;width:1px;background:var(--surface);opacity:.8}
+.vk-vlag{position:absolute;top:-14px;transform:translateX(-50%);font-size:18px;color:var(--ink);font-weight:400}
+.vk-schaal{display:flex;justify-content:space-between}
+.vk-lijst{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+.vk-rij{display:grid;grid-template-columns:76px minmax(0,1fr) 64px 140px;align-items:center;gap:10px;font-size:13.5px}
+.vk-naam{font-weight:600}
+.vk-balk{height:10px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);overflow:hidden}
+.vk-balk span{display:block;height:100%;background:#2E9CB8;border-radius:5px}
+.vk-rij.laag .vk-balk span{background:var(--accent)}
+.vk-bedrag{text-align:right;font-weight:600}
+.vk-rest{color:var(--muted)}
+@media (max-width:560px){.vk-rij{grid-template-columns:64px minmax(0,1fr) 56px}.vk-rest{grid-column:2/4;margin-top:-4px}}
 /* maandtabel */
 .mt-wrap{overflow-x:auto;margin:0 -16px;padding:0 16px}
 table.mt{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
@@ -328,6 +353,7 @@ function viewOverzicht(){
     </section>
     <p class="hint small muted">Klik op een naam om alle kosten van die huisgenoot te zien.</p>
     <section class="cards">${cards}</section>
+    ${vakantieBlok()}
     <section class="grid2">
       <div class="panel"><div class="panel-head"><h2>Groepsapp</h2><button class="primary" data-act="kopieer-app">Kopieer tekst</button></div>
         <textarea id="apptekst" readonly aria-label="Tekst voor de groepsapp">${esc(groepsappTekst(m,r,c))}</textarea></div>
@@ -344,6 +370,64 @@ function viewOverzicht(){
     </section>
     ${maandTabel(m,r)}
   </div>${S.persoon&&r.per[S.persoon]?persoonBlad(S.persoon,m,r,c):""}`;
+}
+function vakantieInfo(){
+  const v=(cfg()&&cfg().vakantie)||null;if(!v) return null;
+  const per={};for(const [n,b] of Object.entries(v.stand||{})) per[n]=nz(b);
+  for(const id of Object.keys(S.maanden).sort()){
+    if(v.standMaand&&id<=v.standMaand) continue;
+    const m=S.maanden[id];if(m.status!=="definitief") continue;
+    for(const p of m.posten||[]) if(/sparen.*vakantie/i.test(p.naam||"")) for(const [n,b] of Object.entries(postBedragen(p))) per[n]=(per[n]||0)+b;
+  }
+  const namen=Object.keys(per).filter(n=>per[n]>0||(v.stand||{})[n]!=null);
+  const doel=nz(v.doelPP),pot=namen.reduce((a,n)=>a+per[n],0),doelTot=doel*namen.length;
+  return {v,per,namen,doel,pot,doelTot};
+}
+function vakantieBlok(){
+  const vi=vakantieInfo();if(!vi||!vi.namen.length) return "";
+  const {v,per,namen,doel,pot,doelTot}=vi;
+  const pct=x=>Math.max(0,Math.min(100,x));
+  const e0=x=>"€ "+Math.round(x).toLocaleString("nl-NL");
+  const pTot=doelTot?pot/doelTot*100:0;
+  const maandPP=nz(v.perMaand)||100;
+  const rijen=namen.slice().sort((a,b)=>per[b]-per[a]||namen.indexOf(a)-namen.indexOf(b)).map(n=>{
+    const g=per[n],p=doel?g/doel*100:0,rest=Math.max(0,doel-g),mnd=Math.ceil(rest/maandPP);
+    return `<div class="vk-rij${g<doel*0.5?" laag":""}">
+      <span class="vk-naam">${esc(n)}</span>
+      <div class="vk-balk" role="img" aria-label="${esc(n)}: ${eur(g)} van ${eur(doel)}"><span style="width:${pct(p)}%"></span></div>
+      <span class="vk-bedrag num">${e0(g)}</span>
+      <span class="vk-rest small">${rest>0.004?`nog ${e0(rest)} · ±${mnd} mnd`:"doel gehaald ✓"}</span>
+    </div>`;}).join("");
+  const mijl=[25,50,75].map(x=>`<i style="left:${x}%"></i>`).join("");
+  return `<section class="panel vk">
+    <div class="vk-hero">
+      <svg class="vk-scene" viewBox="0 0 1000 170" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+        <defs><linearGradient id="vkLucht" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFB46B"/><stop offset=".55" stop-color="#FFD9A0"/><stop offset="1" stop-color="#BFE6F0"/></linearGradient>
+        <linearGradient id="vkZee" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2E9CB8"/><stop offset="1" stop-color="#14607A"/></linearGradient></defs>
+        <rect width="1000" height="170" fill="url(#vkLucht)"/>
+        <circle cx="660" cy="62" r="26" fill="#FFF3C4" opacity=".95"/>
+        <path d="M360 128 L470 52 Q478 46 486 52 L502 64 L516 54 Q524 48 532 56 L640 128 Z" fill="#5C6E7E"/>
+        <path d="M470 52 Q478 46 486 52 L502 64 L516 54 Q524 48 532 56 L546 68 Q528 72 516 64 Q504 74 490 66 Q476 70 458 60 Z" fill="#8396A6"/>
+        <path d="M0 132 Q150 112 300 126 Q420 138 520 124 Q700 106 1000 128 L1000 170 L0 170 Z" fill="#3F7A4E"/>
+        <rect y="138" width="1000" height="32" fill="url(#vkZee)"/>
+        <path d="M0 146 Q25 142 50 146 T100 146 T150 146 T200 146 T250 146 T300 146 T350 146 T400 146 T450 146 T500 146 T550 146 T600 146 T650 146 T700 146 T750 146 T800 146 T850 146 T900 146 T950 146 T1000 146" stroke="#BDEBF5" stroke-width="2" fill="none" opacity=".7"/>
+        <path d="M860 140 Q866 112 876 96" stroke="#6B4A2B" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <path d="M876 96 Q894 88 908 99 M876 96 Q887 80 903 78 M876 96 Q861 82 845 86 M876 96 Q856 96 847 109 M876 96 Q880 110 890 118" stroke="#2F6B3A" stroke-width="6" fill="none" stroke-linecap="round"/>
+      </svg>
+      <div class="vk-titel"><div class="label vk-label">Huisvakantie ${esc(v.jaar||"")}</div><h2>Op naar ${esc(v.bestemming||"vakantie")}! 🌴</h2></div>
+    </div>
+    <div class="vk-body">
+      <div class="vk-kop">
+        <div><div class="label">In het potje</div><div class="vk-pot num">${e0(pot)}</div></div>
+        <div><div class="label">Doel</div><div class="vk-doel num">${e0(doelTot)} <span class="small muted">(${e0(doel)} p.p.)</span></div></div>
+        <div><div class="label">Al bij elkaar</div><div class="vk-doel num">${Math.round(pTot)}%</div></div>
+      </div>
+      <div class="vk-totaal" role="img" aria-label="${Math.round(pTot)} procent van het doel"><span style="width:${pct(pTot)}%"></span>${mijl}<b class="vk-vlag" style="left:${pct(pTot)}%">✈︎</b></div>
+      <div class="vk-schaal small muted"><span>€ 0</span><span>${e0(doelTot/2)}</span><span>${e0(doelTot)}</span></div>
+      <div class="vk-lijst">${rijen}</div>
+      <p class="small muted" style="margin:0">Per persoon is het doel ${eur(doel)}. "± mnd" is een schatting bij ${eur(maandPP)} sparen per maand.</p>
+    </div>
+  </section>`;
 }
 function maandTabel(m,r){
   const namen=r.namen,posten=m.posten||[];
