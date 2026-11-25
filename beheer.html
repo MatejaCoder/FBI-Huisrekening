@@ -582,6 +582,7 @@ function chipsHtml(base,p,namen,locked){
   return `<div class="chips">${namen.map(n=>`<button class="chip" aria-pressed="${(p.personen||[]).includes(n)}" data-act="toggle" data-base="${base}" data-naam="${esc(n)}" ${locked?"disabled":""}>${esc(n)}</button>`).join("")}
     <span class="sep"></span>
     <button class="ghost small" data-act="kies" data-base="${base}" data-wie="bew" ${locked?"disabled":""}>Bewoners (${bew.length})</button>
+    <button class="ghost small" data-act="kies" data-base="${base}" data-wie="skacht" ${locked?"disabled":""} title="Bruun en Tjeerd">Skachten</button>
     <button class="ghost small" data-act="kies" data-base="${base}" data-wie="all" ${locked?"disabled":""}>Iedereen</button>
     <button class="ghost small" data-act="kies" data-base="${base}" data-wie="none" ${locked?"disabled":""}>Niemand</button></div>`;
 }
@@ -793,7 +794,7 @@ document.addEventListener("click",e=>{
   if(act==="sleutel-ververs"){const p=basePost(b.dataset.base);p.gewichten=sleutelUitConfig();bewaarPad(b.dataset.base);renderAll();return;}
   if(act==="kies"){const p=basePost(b.dataset.base);const namen=b.dataset.base.startsWith("m.")?m.namen:c.huisgenoten.map(h=>h.naam);
     const bew=c.huisgenoten.filter(h=>nz(h.huur)>0).map(h=>h.naam);
-    p.personen=b.dataset.wie==="all"?[...namen]:b.dataset.wie==="bew"?namen.filter(n=>bew.includes(n)):[];
+    p.personen=b.dataset.wie==="skacht"?namen.filter(n=>["Bruun","Tjeerd"].includes(n)):b.dataset.wie==="all"?[...namen]:b.dataset.wie==="bew"?namen.filter(n=>bew.includes(n)):[];
     vulSleutel(p);bewaarPad(b.dataset.base);renderAll();return;}
   if(act==="del-post"){const parts=b.dataset.base.split(".");const i=Number(parts.pop());const arr=getPath(parts.join("."));arr.splice(i,1);bewaarPad(b.dataset.base);renderAll();return;}
   if(act==="add-post"){m.posten=m.posten||[];const np={id:uid(),naam:"",soort:"verdeel",totaal:null,personen:[]};
