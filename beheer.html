@@ -269,8 +269,12 @@ nav.tabs a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accen
 .iban{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .met-hoover{position:relative;padding-right:calc(18px + var(--hv-b,0px))}
 .met-hoover .hoover{border-radius:8px;border:1px solid var(--line);filter:grayscale(1);display:block}
-@media (min-width:721px){.met-hoover{--hv-b:min(32vw,300px)}.met-hoover .hoover{position:absolute;top:8px;bottom:8px;right:8px;height:calc(100% - 16px);width:auto;max-width:var(--hv-b);object-fit:cover}}
-@media (max-width:720px){.met-hoover .hoover{width:100%;height:auto;max-width:360px;margin:12px 0 0 auto}}
+.hoover-tekst{font-family:var(--f-display);font-weight:750;font-style:italic;font-size:30px;line-height:1.05;color:var(--ink);white-space:nowrap;letter-spacing:-.01em}
+@media (min-width:721px){.met-hoover{--hv-b:calc(min(28vw,280px) + 210px)}
+  .hoover-blok{position:absolute;top:8px;bottom:8px;right:8px;display:flex;align-items:center;gap:18px}
+  .met-hoover .hoover{height:100%;width:auto;max-width:min(28vw,280px);object-fit:cover}}
+@media (max-width:720px){.hoover-blok{display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-top:12px}
+  .hoover-tekst{font-size:26px}.met-hoover .hoover{width:100%;height:auto;max-width:360px}}
 .iban code{font-family:var(--f-body);font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.03em}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0}
@@ -389,27 +393,35 @@ button.kaart .meer{font-size:12.5px;color:var(--accent);font-weight:600}
 .vk-rij .vk-naam{gap:6px}
 .vk-rij{grid-template-columns:96px minmax(0,1fr) 64px 140px}
 @media (max-width:560px){.vk-rij{grid-template-columns:84px minmax(0,1fr) 56px}}
-/* maandtabel */
-.mt-wrap{overflow-x:auto;margin:0 -16px;padding:0 16px}
-table.mt{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
-table.mt th,table.mt td{border:0;padding:7px 7px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-table.mt thead th{position:sticky;top:0;background:var(--surface);font-size:12px;color:var(--muted);font-weight:600;border-bottom:2px solid var(--line);vertical-align:bottom}
-table.mt th[scope=row],table.mt .mt-post,table.mt tr.grp th{text-align:left;position:sticky;left:0;background:var(--surface);z-index:1}
-table.mt thead .mt-post{z-index:2}
-table.mt th[scope=row]{font-weight:500;min-width:150px;max-width:210px;padding-left:0;white-space:normal;box-shadow:1px 0 0 var(--line)}
-table.mt .rl{display:block}
-table.mt .rm{display:block;font-size:11.5px;color:var(--muted);font-weight:400}
-table.mt tbody td{border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
-table.mt tbody tr:hover td,table.mt tbody tr:hover th[scope=row]{background:var(--sunk)}
-table.mt tr.grp th{padding-top:16px;padding-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);font-weight:700;border-bottom:1px solid var(--line)}
-table.mt tr.min td{color:var(--pos)}
-table.mt tr.sub td,table.mt tr.sub th{font-weight:650;background:var(--sunk)}
-table.mt td.tc,table.mt th.tc{font-weight:600;border-left:1px solid var(--line)}
-table.mt .nul{color:var(--line)}
-table.mt tfoot th,table.mt tfoot td{background:var(--accent-soft);font-weight:750;font-size:14px;border-top:2px solid var(--accent);padding-block:10px}
-table.mt tfoot th{font-family:var(--f-display)}
+/* maandtabel: per huisgenoot */
+table.ov{width:100%;border-collapse:collapse;font-size:14px}
+table.ov th,table.ov td{padding:9px 8px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+table.ov thead th{font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid var(--line);vertical-align:bottom;white-space:normal}
+table.ov thead th i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:1px}
+table.ov th[scope=row],table.ov thead th:first-child{text-align:left;padding-left:0}
+table.ov tbody th{font-weight:600}
+.ov-naam{display:flex;align-items:center;gap:8px}
+.ov-bar{margin-top:6px;height:4px;max-width:180px}
+table.ov tbody tr{cursor:pointer}
+table.ov tbody tr:hover>*,table.ov tbody tr:focus-visible>*{background:var(--sunk)}
+table.ov tbody tr:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+table.ov tbody tr:hover .ov-pijl{color:var(--accent)}
+table.ov .ov-tot{font-weight:700;font-size:15px}
+table.ov thead th.ov-tot{font-size:11.5px;color:var(--ink)}
+table.ov .ov-tot.neg{color:var(--pos)}
+table.ov .ov-pijl{width:14px;padding-left:0;color:var(--line);font-size:20px;line-height:1}
+table.ov .nul{color:var(--line)}
+table.ov tfoot th,table.ov tfoot td{border-bottom:0;border-top:2px solid var(--accent);background:var(--accent-soft);font-weight:750;padding-block:11px}
+table.ov tfoot th{padding-left:10px;font-family:var(--f-display)}
+@media (max-width:640px){table.ov .opt{display:none}table.ov{font-size:13.5px}}
+.ov-posten{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.ov-posten summary{cursor:pointer;font-weight:600;color:var(--accent);padding:4px 0}
+.ov-pgrp{margin-top:10px}
+.ov-pkop{display:flex;justify-content:space-between;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);font-weight:700;border-bottom:1px solid var(--line);padding:4px 0}
+.ov-post{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed color-mix(in srgb,var(--line) 70%,transparent);font-size:14px}
+.ov-post small{display:block;color:var(--muted);font-size:12px;font-weight:400}
+.ov-post .num{white-space:nowrap;font-variant-numeric:tabular-nums}
 .mt-naam{background:none;border:0;padding:2px 4px;margin:0 -4px;font:inherit;font-weight:600;color:var(--ink);cursor:pointer;border-radius:5px}
-.mt-naam:hover{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
 /* persoonsblad */
 .pb-scrim{position:fixed;inset:0;background:rgb(10 14 18 / .45);z-index:60}
 .pb{position:fixed;z-index:61;top:0;right:0;bottom:0;width:min(440px,100%);background:var(--surface);border-left:1px solid var(--line);overflow-y:auto;display:flex;flex-direction:column;gap:14px;
@@ -631,7 +643,7 @@ function viewOverzicht(){
         <div class="iban"><div><div class="label">Overmaken naar</div><code>${esc(c.betalen.iban)}</code> <span class="muted">t.n.v. ${esc(c.betalen.tnv)}</span></div><button class="ghost" data-act="kopieer" data-tekst="${esc(c.betalen.iban.replace(/\s/g,""))}">Kopieer IBAN</button></div>
       </div>
       <div class="legend"><span><i class="c-huur"></i>Huur en openstaand</span><span><i class="c-vast"></i>Vaste lasten</span><span><i class="c-var"></i>Variabel en boetes</span><span><i class="c-pils"></i>Pils</span></div>
-      <img class="hoover" src="hoover.jpg" alt="J. Edgar Hoover met een machinegeweer" width="140" height="84" onerror="this.remove()">
+      <div class="hoover-blok"><span class="hoover-tekst">Betalen vriend</span><img class="hoover" src="hoover.jpg" alt="J. Edgar Hoover met een machinegeweer" width="140" height="84" onerror="this.remove()"></div>
     </section>
     <p class="hint small muted">Klik op een naam om alle kosten van die huisgenoot te zien.</p>
     <section class="cards">${cards}</section>
@@ -721,30 +733,32 @@ function vakantieBlok(){
 }
 function maandTabel(m,r){
   const namen=r.namen,posten=m.posten||[];
-  const fmt=v=>Math.abs(v)<0.005?`<span class="nul">·</span>`:(v<0?"−":"")+Math.abs(Math.round(v*100)/100).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});
-  const rij=(label,meta,vals,cls)=>{const tot=vals.reduce((a,c)=>a+c,0);
-    return `<tr class="${cls||""}"><th scope="row"><span class="rl">${esc(label)}</span>${meta?`<span class="rm">${esc(meta)}</span>`:""}</th>${vals.map(v=>`<td>${fmt(v)}</td>`).join("")}<td class="tc">${fmt(tot)}</td></tr>`;};
-  const groep=(label)=>`<tr class="grp"><th scope="rowgroup" colspan="${namen.length+2}">${esc(label)}</th></tr>`;
-  const per=f=>namen.map(n=>f(r.per[n]));
-  const vast=posten.filter(p=>p.vast),vari=posten.filter(p=>!p.vast);
-  const postRij=p=>{const b=postBedragen(p);return rij(p.naam||"(zonder naam)",postMeta(p),namen.map(n=>b[n]||0));};
-  let h=groep("Huur en saldo")
-    +rij("Openstaand","van vorige maand",per(p=>p.open))
-    +rij("Betaald","sinds vorige rekening",per(p=>-p.betaald),"min")
-    +rij("Huur","",per(p=>p.huur))
-    +rij("Subtotaal","",per(p=>p.variabel),"sub");
-  if(vast.length) h+=groep("Vaste lasten")+vast.map(postRij).join("");
-  if(vari.length) h+=groep("Variabele posten")+vari.map(postRij).join("");
-  h+=groep("Pils en boetes")
-    +rij("Pils",r.pils.toeslag?`incl. toeslag ${eur(r.pils.toeslag)}`:"",per(p=>p.pils))
-    +rij("Boetes","",per(p=>p.boete));
-  const tot=per(p=>p.totaal);
-  return `<section class="panel"><div class="panel-head"><h2>Hele maand</h2><span class="small muted">Bedragen in euro's · klik op een naam voor de details</span></div>
-    <div class="mt-wrap"><table class="mt">
-      <thead><tr><th scope="col" class="mt-post">Post</th>${namen.map(n=>`<th scope="col"><button class="mt-naam" data-act="persoon" data-naam="${esc(n)}"><span class="metav kolom">${avatar(n,"klein")}${esc(n)}</span></button></th>`).join("")}<th scope="col" class="tc">Totaal</th></tr></thead>
-      <tbody>${h}</tbody>
-      <tfoot><tr><th scope="row">Te betalen</th>${tot.map(v=>`<td>${fmt(v)}</td>`).join("")}<td class="tc">${fmt(tot.reduce((a,c)=>a+c,0))}</td></tr></tfoot>
-    </table></div></section>`;
+  const fmt=v=>Math.abs(v)<0.005?`<span class="nul">–</span>`:eur(v);
+  const kol=[["c-huur","Huur en saldo",p=>p.variabel,""],["c-vast","Vaste lasten",p=>p.vast,"opt"],["c-var","Variabel en boetes",p=>p.var+p.boete,"opt"],["c-pils","Pils",p=>p.pils,"opt"]];
+  const som=f=>namen.reduce((a,n)=>a+f(r.per[n]),0);
+  const maxT=Math.max(1,...namen.map(n=>Math.max(0,r.per[n].totaal)));
+  const rijen=namen.map(n=>{const p=r.per[n];
+    const seg=kol.map(([k,,f])=>[k,Math.max(0,f(p))]),ss=Math.max(.01,seg.reduce((a,x)=>a+x[1],0));
+    return `<tr data-act="persoon" data-naam="${esc(n)}" tabindex="0" aria-label="Kosten van ${esc(n)} bekijken">
+      <th scope="row"><span class="ov-naam">${avatar(n,"klein")}<span>${esc(n)}</span></span>
+        <span class="bar ov-bar" style="width:${Math.max(6,Math.max(0,p.totaal)/maxT*100)}%">${seg.map(([k,v])=>v>0.004?`<span class="${k}" style="width:${v/ss*100}%"></span>`:"").join("")}</span></th>
+      ${kol.map(([,,f,c])=>`<td class="${c}">${fmt(f(p))}</td>`).join("")}
+      <td class="ov-tot ${p.totaal<-0.004?"neg":""}">${fmt(p.totaal)}</td><td class="ov-pijl" aria-hidden="true">›</td></tr>`;}).join("");
+  const postLijst=(titel,lijst)=>lijst.length?`<div class="ov-pgrp"><div class="ov-pkop"><span>${titel}</span><span class="num">${eur(lijst.reduce((a,p)=>a+Object.values(postBedragen(p)).reduce((x,y)=>x+y,0),0))}</span></div>
+    ${lijst.map(p=>{const b=postBedragen(p),t=Object.values(b).reduce((x,y)=>x+y,0),wie=Object.keys(b).filter(n=>Math.abs(b[n])>=0.005);
+      return `<div class="ov-post"><span><b>${esc(p.naam||"(zonder naam)")}</b><small>${esc(postMeta(p))}${wie.length&&wie.length<namen.length?` · ${esc(wie.join(", "))}`:""}</small></span><span class="num">${eur(t)}</span></div>`;}).join("")}</div>`:"";
+  return `<section class="panel"><div class="panel-head"><h2>Hele maand</h2><span class="small muted">Tik op een huisgenoot voor alle details</span></div>
+    <table class="ov">
+      <thead><tr><th scope="col">Huisgenoot</th>${kol.map(([k,l,,c])=>`<th scope="col" class="${c}"><i class="${k}"></i>${l}</th>`).join("")}<th scope="col" class="ov-tot">Te betalen</th><th aria-hidden="true"></th></tr></thead>
+      <tbody>${rijen}</tbody>
+      <tfoot><tr><th scope="row">Totaal huis</th>${kol.map(([,,f,c])=>`<td class="${c}">${fmt(som(f))}</td>`).join("")}<td class="ov-tot">${fmt(som(p=>p.totaal))}</td><td></td></tr></tfoot>
+    </table>
+    <details class="ov-posten"><summary>Alle posten van deze maand</summary>
+      ${postLijst("Vaste lasten",posten.filter(p=>p.vast))}${postLijst("Variabele posten",posten.filter(p=>!p.vast))}
+      <div class="ov-pgrp"><div class="ov-pkop"><span>Pils en boetes</span><span class="num">${eur(som(p=>p.pils+p.boete))}</span></div>
+        <div class="ov-post"><span><b>Pils</b><small>${r.pils.toeslag?`incl. toeslag ${esc(eur(r.pils.toeslag))} p.p.`:"strepen"}</small></span><span class="num">${eur(som(p=>p.pils))}</span></div>
+        <div class="ov-post"><span><b>Boetes</b></span><span class="num">${eur(som(p=>p.boete))}</span></div></div>
+    </details></section>`;
 }
 function persoonBlad(n,m,r,c){
   const p=r.per[n],i=r.namen.indexOf(n),vorige=r.namen[i-1],volgende=r.namen[i+1];
@@ -797,6 +811,7 @@ function overzichtActie(act,b){
   return false;
 }
 document.addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&e.target.matches&&e.target.matches("table.ov tbody tr")){overzichtActie("persoon",e.target);return;}
   if(document.getElementById("vopop")){if(e.key==="Escape"){e.preventDefault();voDicht();}return;}
   if(document.getElementById("fotobox")){if(e.key==="Escape"){e.preventDefault();fotoDicht();}return;}
   if(!S.persoon) return;
