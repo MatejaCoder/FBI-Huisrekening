@@ -222,6 +222,31 @@ table.ov tfoot th{padding-left:10px;font-family:var(--f-display)}
 .ov-post small{display:block;color:var(--muted);font-size:12px;font-weight:400}
 .ov-post .num{white-space:nowrap;font-variant-numeric:tabular-nums}
 .mt-naam{background:none;border:0;padding:2px 4px;margin:0 -4px;font:inherit;font-weight:600;color:var(--ink);cursor:pointer;border-radius:5px}
+/* boeking verwerken */
+.boek-keuzes{display:flex;flex-wrap:wrap;gap:8px}
+.boek-keuze{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:10px;border:2px solid var(--line);background:var(--surface);font:inherit;font-weight:600;font-size:15px;cursor:pointer;color:var(--ink)}
+.boek-keuze span{font-size:20px;line-height:1}
+.boek-keuze:hover{border-color:var(--accent)}
+.boek-keuze.aan{border-color:var(--accent);background:var(--accent-soft)}
+.boek-stap{margin-top:14px;padding:14px;border-radius:10px;background:var(--sunk);display:flex;flex-direction:column;gap:10px}
+.boek-lbl{font-size:12px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--muted)}
+.boek-namen{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:6px}
+.boek-naam{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:8px;align-items:center;text-align:left;padding:8px 10px;border-radius:8px;border:1.5px solid var(--line);background:var(--surface);font:inherit;cursor:pointer;color:var(--ink)}
+.boek-naam .av{grid-row:span 2}
+.boek-naam span:not(.av){font-weight:600}
+.boek-naam small{color:var(--muted);font-size:11.5px}
+.boek-naam:hover{border-color:var(--accent)}
+.boek-naam.aan{border-color:var(--accent);background:var(--accent-soft)}
+.boek-invoer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.boek-invoer>span{font-weight:700;font-size:18px}
+.boek-invoer input{font-size:18px;padding:8px 10px;width:140px;font-weight:600}
+.boek-rij .fout{color:var(--neg);min-height:1em}
+.boek-ok{margin-top:12px;padding:9px 12px;border-radius:8px;background:color-mix(in srgb,var(--pos) 14%,var(--surface));color:var(--ink);font-size:14px;border:1px solid color-mix(in srgb,var(--pos) 40%,transparent)}
+.boek-log{margin-top:12px}
+.boek-log summary{cursor:pointer;font-weight:600;color:var(--accent);font-size:14px}
+.boek-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.boek-item>span:first-child{flex:1}
+.boek-item small{display:block;color:var(--muted);font-size:11.5px}
 /* persoonsblad */
 .pb-scrim{position:fixed;inset:0;background:rgb(10 14 18 / .45);z-index:60}
 .pb{position:fixed;z-index:61;top:0;right:0;bottom:0;width:min(440px,100%);background:var(--surface);border-left:1px solid var(--line);overflow-y:auto;display:flex;flex-direction:column;gap:14px;
@@ -587,6 +612,7 @@ function overzichtActie(act,b){
   return false;
 }
 document.addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&e.target.id==="boek-bedrag"){e.preventDefault();const k=document.querySelector('[data-act="boek-ok"]');if(k) k.click();return;}
   if(e.key==="Enter"&&e.target.matches&&e.target.matches("table.ov tbody tr")){overzichtActie("persoon",e.target);return;}
   if(document.getElementById("vopop")){if(e.key==="Escape"){e.preventDefault();voDicht();}return;}
   if(document.getElementById("fotobox")){if(e.key==="Escape"){e.preventDefault();fotoDicht();}return;}
